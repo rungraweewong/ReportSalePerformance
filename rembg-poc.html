@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>rembg-web POC</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #f3ede3;
+        --panel: rgba(255, 251, 246, 0.88);
+        --ink: #241813;
+        --muted: #6f5d53;
+        --brand: #b95a31;
+        --line: rgba(70, 45, 30, 0.12);
+        --shadow: 0 24px 64px rgba(70, 45, 30, 0.12);
+        font-family: "Prompt", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(255, 255, 255, 0.92), transparent 25%),
+          linear-gradient(135deg, #f6efe6, var(--bg));
+      }
+
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+
+      .page {
+        width: min(1240px, calc(100vw - 32px));
+        margin: 0 auto;
+        padding: 28px 0 42px;
+      }
+
+      .hero,
+      .panel {
+        background: var(--panel);
+        border: 1px solid rgba(255, 255, 255, 0.45);
+        border-radius: 28px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(14px);
+      }
+
+      .hero {
+        padding: 28px;
+      }
+
+      .eyebrow {
+        margin: 0 0 8px;
+        color: var(--brand);
+        font-size: 0.9rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: clamp(2rem, 4vw, 3.6rem);
+        line-height: 1.05;
+      }
+
+      .hero p:last-child {
+        margin-top: 14px;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        gap: 22px;
+        margin-top: 22px;
+      }
+
+      .panel {
+        padding: 24px;
+      }
+
+      .controls {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .label {
+        font-size: 0.95rem;
+        font-weight: 500;
+      }
+
+      input[type="file"],
+      input[type="range"],
+      select {
+        width: 100%;
+      }
+
+      .actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .button,
+      .ghost {
+        border: 0;
+        border-radius: 999px;
+        padding: 12px 18px;
+        cursor: pointer;
+      }
+
+      .button {
+        color: white;
+        background: linear-gradient(135deg, #8d3c22, var(--brand));
+      }
+
+      .ghost {
+        color: #8d3c22;
+        background: rgba(185, 90, 49, 0.1);
+      }
+
+      .button:disabled,
+      .ghost:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
+      .status {
+        padding: 14px 16px;
+        color: var(--muted);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.72);
+        line-height: 1.6;
+        white-space: pre-wrap;
+      }
+
+      .compare {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .preview {
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.72);
+      }
+
+      .preview-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .canvas-wrap {
+        display: grid;
+        place-items: center;
+        min-height: 360px;
+        padding: 18px;
+        background:
+          linear-gradient(45deg, rgba(185, 90, 49, 0.05) 25%, transparent 25%),
+          linear-gradient(-45deg, rgba(185, 90, 49, 0.05) 25%, transparent 25%),
+          linear-gradient(45deg, transparent 75%, rgba(185, 90, 49, 0.05) 75%),
+          linear-gradient(-45deg, transparent 75%, rgba(185, 90, 49, 0.05) 75%),
+          #fffaf5;
+        background-size: 28px 28px;
+        background-position: 0 0, 0 14px, 14px -14px, -14px 0;
+      }
+
+      .canvas-wrap img {
+        display: block;
+        max-width: 100%;
+        max-height: 62vh;
+        object-fit: contain;
+      }
+
+      .meta {
+        padding: 12px 16px 16px;
+        color: var(--muted);
+        font-size: 0.92rem;
+        line-height: 1.6;
+      }
+
+      @media (max-width: 980px) {
+        .grid,
+        .compare {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <p class="eyebrow">POC</p>
+        <h1>ทดสอบ rembg-web แบบตรง ๆ</h1>
+        <p>
+          หน้านี้แยกจาก editor หลัก ใช้เพื่อตอบคำถามว่า `rembg-web` ให้ผลใกล้ `rembg` Python
+          แค่ไหน โดยเปรียบเทียบรูปต้นฉบับกับผลลัพธ์ที่ตัดพื้นหลังใน browser โดยตรง
+        </p>
+      </section>
+
+      <section class="grid">
+        <aside class="panel controls">
+          <div class="group">
+            <label class="label" for="imageInput">เลือกรูป</label>
+            <input
+              id="imageInput"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+            />
+          </div>
+
+          <div class="group">
+            <label class="label" for="modelSelect">Model</label>
+            <select id="modelSelect">
+              <option value="u2net_human_seg">u2net_human_seg</option>
+              <option value="u2net">u2net</option>
+              <option value="u2netp">u2netp</option>
+            </select>
+          </div>
+
+          <div class="group">
+            <label class="label" for="foregroundThreshold">Foreground Threshold</label>
+            <input id="foregroundThreshold" type="range" min="150" max="255" step="1" value="220" />
+          </div>
+
+          <div class="group">
+            <label class="label" for="backgroundThreshold">Background Threshold</label>
+            <input id="backgroundThreshold" type="range" min="1" max="80" step="1" value="10" />
+          </div>
+
+          <div class="group">
+            <label class="label" for="erodeSize">Erode Size</label>
+            <input id="erodeSize" type="range" min="0" max="20" step="1" value="4" />
+          </div>
+
+          <div class="actions">
+            <button class="button" id="runButton" type="button" disabled>Run rembg-web</button>
+            <button class="ghost" id="downloadButton" type="button" disabled>ดาวน์โหลด PNG</button>
+          </div>
+
+          <div class="status" id="statusBox">ยังไม่ได้เลือกรูป</div>
+        </aside>
+
+        <section class="panel">
+          <div class="compare">
+            <article class="preview">
+              <div class="preview-head">
+                <div>
+                  <p class="eyebrow">Original</p>
+                  <h2>รูปต้นฉบับ</h2>
+                </div>
+              </div>
+              <div class="canvas-wrap">
+                <img id="originalPreview" alt="Original preview" />
+              </div>
+              <div class="meta" id="originalMeta">ยังไม่มีรูป</div>
+            </article>
+
+            <article class="preview">
+              <div class="preview-head">
+                <div>
+                  <p class="eyebrow">Result</p>
+                  <h2>ผลลัพธ์ rembg-web</h2>
+                </div>
+              </div>
+              <div class="canvas-wrap">
+                <img id="resultPreview" alt="Processed preview" />
+              </div>
+              <div class="meta" id="resultMeta">ยังไม่มีผลลัพธ์</div>
+            </article>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "onnxruntime-web": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.0/dist/ort.all.min.mjs",
+          "@bunnio/rembg-web": "https://unpkg.com/@bunnio/rembg-web@1.0.2/dist/index.js"
+        }
+      }
+    </script>
+    <script type="module" src="./rembg-poc.js"></script>
+  </body>
+</html>

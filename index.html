@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sale Report Composer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&family=Kanit:wght@300;400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="workspace-grid">
+        <aside class="control-card seller-card">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Seller Image</p>
+              <h2>จัดการรูปคนขาย</h2>
+            </div>
+          </div>
+
+          <label class="upload-dropzone secondary" id="personDropzone" for="personImageInput">
+            <input
+              id="personImageInput"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              multiple
+            />
+            <span class="dropzone-icon small">+</span>
+            <span class="dropzone-title">อัปโหลดรูปคนขาย</span>
+            <span class="dropzone-subtitle">เลือกได้ไม่จำกัด และลากวางลงบน preview ได้ต่อทันที</span>
+            <span class="dropzone-note">ระบบจะพยายามใช้ rembg-web เพื่อดึงเฉพาะตัวคนออกมา</span>
+          </label>
+
+          <div class="control-group">
+            <label class="field-label" for="selectedImageItem">เลือกรูปที่ต้องการแก้</label>
+            <select id="selectedImageItem"></select>
+          </div>
+
+          <div class="control-group">
+            <label class="field-label" for="imageScale">ขนาดรูป (%)</label>
+            <input id="imageScale" type="range" min="5" max="120" step="1" value="28" />
+          </div>
+
+          <div class="field-grid">
+            <label class="toggle-card">
+              <input id="removeBgEnabled" type="checkbox" checked />
+              <span>เปิดการตัด background</span>
+            </label>
+            <div class="stat-card">
+              <span class="stat-label">สถานะ</span>
+              <strong id="imageStatus">ยังไม่มีรูปคนขาย</strong>
+            </div>
+          </div>
+
+          <div class="button-row">
+            <button class="danger-button" id="removeImageButton" type="button" disabled>
+              ลบรูป
+            </button>
+          </div>
+        </aside>
+
+        <section class="preview-card">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Live Preview</p>
+              <h2 id="backgroundTitle">ยังไม่มีไฟล์ background</h2>
+              <p class="preview-status" id="statusText">ยังไม่ได้เลือกรูป background</p>
+            </div>
+            <div class="preview-actions">
+              <button class="ghost-button" id="clearBackgroundButton" type="button" disabled>
+                ล้างรูป
+              </button>
+              <div class="preview-action-stack">
+                <button class="brand-button" id="downloadButton" type="button" disabled>
+                  ดาวน์โหลดภาพ
+                </button>
+                <label class="brand-button upload-button" id="backgroundDropzone" for="backgroundInput">
+                  <input
+                    id="backgroundInput"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                  />
+                  อัปโหลด Background
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="canvas-stage" id="canvasStage">
+            <canvas id="previewCanvas" width="1200" height="675"></canvas>
+            <div class="canvas-placeholder" id="canvasPlaceholder">
+              อัปโหลดรูป background ก่อน แล้วข้อความของคุณจะแสดงบนภาพตรงนี้
+            </div>
+          </div>
+
+          <div class="canvas-meta">
+            <p id="canvasInfo">Canvas เริ่มต้น 1200 x 675 px</p>
+            <p>ข้อความทั้งหมดจะวางอ้างอิงจากขนาดจริงของ background ที่อัปโหลด</p>
+          </div>
+        </section>
+
+        <aside class="control-card">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Text Control</p>
+              <h2>ตั้งค่าข้อความ</h2>
+            </div>
+            <button class="brand-button" id="addTextButton" type="button">เพิ่มข้อความ</button>
+          </div>
+
+          <div class="control-group">
+            <label class="field-label" for="textContent">ข้อความ</label>
+            <textarea id="textContent" rows="4" placeholder="เช่น ยอดขายรวม 1,250,000 บาท"></textarea>
+          </div>
+
+          <div class="field-grid">
+            <div class="control-group">
+              <label class="field-label" for="fontFamily">Font</label>
+              <select id="fontFamily">
+                <option value="Prompt">Prompt</option>
+                <option value="Sarabun">Sarabun</option>
+                <option value="Kanit">Kanit</option>
+                <option value="Noto Sans Thai">Noto Sans Thai</option>
+              </select>
+            </div>
+
+            <div class="control-group">
+              <label class="field-label" for="fontWeight">น้ำหนัก</label>
+              <select id="fontWeight">
+                <option value="300">Light</option>
+                <option value="400">Regular</option>
+                <option value="500">Medium</option>
+                <option value="600" selected>Semibold</option>
+                <option value="700">Bold</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field-grid triple">
+            <div class="control-group">
+              <label class="field-label" for="fontSize">ขนาด</label>
+              <input id="fontSize" type="number" min="12" max="180" step="1" value="52" />
+            </div>
+
+            <div class="control-group">
+              <label class="field-label" for="textColor">สีตัวอักษร</label>
+              <input id="textColor" type="color" value="#ffffff" />
+            </div>
+
+            <div class="control-group">
+              <label class="field-label" for="textAlign">จัดวาง</label>
+              <select id="textAlign">
+                <option value="left">Left</option>
+                <option value="center">Center</option>
+                <option value="right">Right</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <span class="field-label">จัดตำแหน่งเทียบกับรูป Background</span>
+            <div class="button-row compact">
+              <button class="ghost-button" id="alignLeftButton" type="button">ชิดซ้าย</button>
+              <button class="ghost-button" id="alignCenterButton" type="button">อยู่ตรงกลาง</button>
+              <button class="ghost-button" id="alignRightButton" type="button">ชิดขวา</button>
+            </div>
+          </div>
+
+          <div class="field-grid triple">
+            <div class="control-group">
+              <label class="field-label" for="shadowColor">สีเงา</label>
+              <input id="shadowColor" type="color" value="#000000" />
+            </div>
+
+            <div class="control-group">
+              <label class="field-label" for="shadowBlur">Blur</label>
+              <input id="shadowBlur" type="number" min="0" max="40" step="1" value="8" />
+            </div>
+
+            <div class="control-group">
+              <label class="field-label" for="shadowOffsetY">Shadow Y</label>
+              <input id="shadowOffsetY" type="number" min="-30" max="30" step="1" value="4" />
+            </div>
+          </div>
+
+          <div class="control-group">
+            <label class="field-label" for="selectedTextItem">เลือกข้อความที่ต้องการแก้</label>
+            <select id="selectedTextItem"></select>
+          </div>
+
+          <div class="button-row">
+            <button class="ghost-button" id="duplicateTextButton" type="button" disabled>
+              ทำสำเนาข้อความ
+            </button>
+            <button class="danger-button" id="removeTextButton" type="button" disabled>
+              ลบข้อความ
+            </button>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "onnxruntime-web": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.0/dist/ort.all.min.mjs",
+          "@bunnio/rembg-web": "https://unpkg.com/@bunnio/rembg-web@1.0.2/dist/index.js"
+        }
+      }
+    </script>
+    <script type="module" src="./script.js"></script>
+  </body>
+</html>
