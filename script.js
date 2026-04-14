@@ -638,7 +638,15 @@ function fillImageEditor() {
     return;
   }
 
-  imageStatus.textContent = `${selectedImage.name} • ${Math.round(selectedImage.widthRatio * width)} px`;
+  const modeLabel = {
+    "python-api": "ใช้ Python API แล้ว",
+    original: "ใช้รูปต้นฉบับ",
+    pending: "รอประมวลผล",
+  }[selectedImage.processingMode] || "พร้อมใช้งาน";
+
+  imageStatus.textContent = `${selectedImage.name} • ${modeLabel} • ${Math.round(
+    selectedImage.widthRatio * width
+  )} px`;
 }
 
 function selectTextItem(textId) {
