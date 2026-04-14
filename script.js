@@ -45,6 +45,16 @@ const alignRightButton = document.getElementById("alignRightButton");
 const imageScale = document.getElementById("imageScale");
 const removeBgEnabled = document.getElementById("removeBgEnabled");
 const DEFAULT_BG_THRESHOLD = 52;
+const MOBILE_REMBG_MAX_EDGE = 960;
+const DESKTOP_REMBG_MAX_EDGE = 2200;
+const MOBILE_PROCESSING_QUALITY = 0.82;
+const DESKTOP_PROCESSING_QUALITY = 0.92;
+const PYTHON_API_URL =
+  window.APP_CONFIG?.PYTHON_API_URL || "http://localhost:9000/remove-background";
+const IS_MOBILE_DEVICE =
+  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(
+    navigator.userAgent
+  ) || window.matchMedia("(max-width: 920px)").matches;
 
 const REMBG_MODEL_PATHS = {
   u2net_human_seg:
@@ -284,16 +294,57 @@ function blobToImage(blob) {
   });
 }
 
+function canvasToBlob(canvas, type = "image/png", quality = 0.92) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("Unable to prepare image for processing"));
+        return;
+      }
+
+      resolve(blob);
+    }, type, quality);
+  });
+}
+
+async function createProcessingFile(file, image) {
+  const maxEdge = IS_MOBILE_DEVICE ? MOBILE_REMBG_MAX_EDGE : DESKTOP_REMBG_MAX_EDGE;
+  const longestSide = Math.max(image.naturalWidth || 0, image.naturalHeight || 0);
+
+  if (!longestSide || longestSide <= maxEdge) {
+    return file;
+  }
+
+  const scale = maxEdge / longestSide;
+  const targetWidth = Math.max(1, Math.round(image.naturalWidth * scale));
+  const targetHeight = Math.max(1, Math.round(image.naturalHeight * scale));
+  const workCanvas = document.createElement("canvas");
+  const workContext = workCanvas.getContext("2d");
+
+  workCanvas.width = targetWidth;
+  workCanvas.height = targetHeight;
+  workContext.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+  const exportType = file.type === "image/png" ? "image/png" : "image/jpeg";
+  const quality = IS_MOBILE_DEVICE ? MOBILE_PROCESSING_QUALITY : DESKTOP_PROCESSING_QUALITY;
+  const blob = await canvasToBlob(workCanvas, exportType, quality);
+
+  return new File([blob], file.name, {
+    type: blob.type || exportType,
+    lastModified: file.lastModified || Date.now(),
+  });
+}
+
 async function removeWithRembg(file, threshold) {
   const session = await getRembgSession();
   const result = await remove(file, {
     session,
-    postProcessMask: true,
+    postProcessMask: !IS_MOBILE_DEVICE,
     bgcolor: [0, 0, 0, 0],
-    alphaMatting: true,
+    alphaMatting: !IS_MOBILE_DEVICE,
     alphaMattingForegroundThreshold: Math.max(180, 220 - threshold),
     alphaMattingBackgroundThreshold: Math.min(60, Math.round(threshold * 0.45)),
-    alphaMattingErodeSize: 4,
+    alphaMattingErodeSize: IS_MOBILE_DEVICE ? 2 : 4,
     onProgress: (info) => {
       const progressText =
         typeof info.progress === "number" ? ` ${Math.round(info.progress)}%` : "";
@@ -302,6 +353,23 @@ async function removeWithRembg(file, threshold) {
   });
 
   return blobToImage(result);
+}
+
+async function removeWithPythonApi(file) {
+  const formData = new FormData();
+  formData.append("file", file, file.name);
+
+  const response = await fetch(PYTHON_API_URL, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(`python api failed: ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  return blobToImage(blob);
 }
 
 function removeImageBackground(image, threshold) {
@@ -425,6 +493,9 @@ function removeImageBackground(image, threshold) {
 }
 
 async function processPersonLayer(layer) {
+  layer.isProcessing = true;
+  fillImageEditor();
+
   try {
     if (!layer.removeBgEnabled) {
       layer.renderSource = layer.originalImage;
@@ -432,22 +503,14 @@ async function processPersonLayer(layer) {
       return;
     }
 
-    if (state.rembg.available) {
-      layer.renderSource = await removeWithRembg(layer.originalFile, layer.threshold);
-      layer.processingMode = "rembg-web";
-      return;
-    }
-
-    layer.renderSource = removeImageBackground(layer.originalImage, layer.threshold);
-    layer.processingMode = "color-fallback";
+    layer.renderSource = await removeWithPythonApi(layer.originalFile);
+    layer.processingMode = "python-api";
   } catch (error) {
-    try {
-      layer.renderSource = removeImageBackground(layer.originalImage, layer.threshold);
-      layer.processingMode = "color-fallback";
-    } catch (fallbackError) {
-      layer.renderSource = layer.originalImage;
-      layer.processingMode = "original";
-    }
+    layer.renderSource = layer.originalImage;
+    layer.processingMode = "original";
+    imageStatus.textContent = "Python API ไม่พร้อม ใช้รูปต้นฉบับแทน";
+  } finally {
+    layer.isProcessing = false;
   }
 }
 
@@ -569,6 +632,12 @@ function fillImageEditor() {
   const { width } = getReferenceDimensions();
   imageScale.value = Math.round(selectedImage.widthRatio * 100);
   removeBgEnabled.checked = selectedImage.removeBgEnabled;
+
+  if (selectedImage.isProcessing) {
+    imageStatus.textContent = `${selectedImage.name} • กำลังลบพื้นหลัง...`;
+    return;
+  }
+
   imageStatus.textContent = `${selectedImage.name} • ${Math.round(selectedImage.widthRatio * width)} px`;
 }
 
@@ -878,6 +947,7 @@ function createPersonLayer(file, image, objectUrl) {
     id: `image-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
     name: file.name,
     originalFile: file,
+    processingFile: file,
     fileSize: file.size,
     url: objectUrl,
     originalImage: image,
@@ -889,6 +959,7 @@ function createPersonLayer(file, image, objectUrl) {
     aspectRatio: drawHeight / drawWidth,
     threshold: DEFAULT_BG_THRESHOLD,
     removeBgEnabled: true,
+    isProcessing: false,
   };
 
   layer.processingMode = "pending";
@@ -923,32 +994,44 @@ function handlePersonFiles(fileList) {
     const image = new Image();
     image.decoding = "async";
 
-    image.onload = async () => {
-      try {
-        const layer = createPersonLayer(file, image, objectUrl);
-        await processPersonLayer(layer);
-        layer.xRatio = Math.min(0.82, 0.12 + state.images.length * 0.06);
-        layer.yRatio = Math.min(0.78, 0.28 + state.images.length * 0.04);
+    image.onload = () => {
+      const layer = createPersonLayer(file, image, objectUrl);
+      layer.xRatio = Math.min(0.82, 0.12 + state.images.length * 0.06);
+      layer.yRatio = Math.min(0.78, 0.28 + state.images.length * 0.04);
 
-        state.images.push(layer);
-        state.selectedImageId = layer.id;
-        state.activeLayerType = "image";
-        successCount += 1;
-        latestLayerId = layer.id;
+      state.images.push(layer);
+      state.selectedImageId = layer.id;
+      state.activeLayerType = "image";
+      successCount += 1;
+      latestLayerId = layer.id;
 
-        refreshImageSelector();
-        fillImageEditor();
-        drawCanvas();
-        updateStatus(`เพิ่มรูปคนขายแล้ว ${successCount} ไฟล์`);
+      refreshImageSelector();
+      fillImageEditor();
+      drawCanvas();
+      updateStatus(`เพิ่มรูปคนขายแล้ว ${successCount} ไฟล์`);
 
-        if (latestLayerId) {
-          selectImageItem(latestLayerId);
-        }
-      } catch (error) {
-        URL.revokeObjectURL(objectUrl);
-        imageStatus.textContent = "เพิ่มรูปไม่สำเร็จ";
-        updateStatus(`ประมวลผลรูป ${file.name} ไม่สำเร็จ`);
+      if (latestLayerId) {
+        selectImageItem(latestLayerId);
       }
+
+      (async () => {
+        try {
+          if (IS_MOBILE_DEVICE) {
+            imageStatus.textContent = "Preparing image for mobile...";
+          }
+          layer.processingFile = await createProcessingFile(file, image);
+          imageStatus.textContent = "Removing seller background...";
+          await processPersonLayer(layer);
+          fillImageEditor();
+          drawCanvas();
+          updateStatus(`ลบพื้นหลังรูป ${file.name} สำเร็จ`);
+        } catch (error) {
+          layer.isProcessing = false;
+          fillImageEditor();
+          drawCanvas();
+          updateStatus(`ประมวลผลรูป ${file.name} ไม่สำเร็จ ใช้รูปต้นฉบับแทน`);
+        }
+      })();
     };
 
     image.onerror = () => {
