@@ -1,0 +1,20 @@
+name: sale-report-background-api
+services:
+  - name: api
+    type: web
+    instance_type: free
+    ports:
+      - port: 8000
+        protocol: http
+    env:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: ALLOWED_ORIGINS
+        value: "*"
+    build:
+      type: buildpack
+      builder: heroku/buildpacks:20
+    git:
+      branch: main
+      build_command: pip install -r backend/requirements.txt
+      run_command: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
