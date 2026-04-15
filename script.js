@@ -1,6 +1,3 @@
-import * as ort from "onnxruntime-web";
-import { newSession, remove, rembgConfig } from "@bunnio/rembg-web";
-
 const MAX_FILE_SIZE = 8 * 1024 * 1024;
 const ACCEPTED_TYPES = new Set([
   "image/png",
@@ -28,6 +25,18 @@ const canvas = document.getElementById("previewCanvas");
 const canvasContext = canvas.getContext("2d");
 const canvasPlaceholder = document.getElementById("canvasPlaceholder");
 const canvasInfo = document.getElementById("canvasInfo");
+const openRegisterButton = document.getElementById("openRegisterButton");
+const openLoginButton = document.getElementById("openLoginButton");
+const logoutButton = document.getElementById("logoutButton");
+const authStatus = document.getElementById("authStatus");
+const authPanel = document.getElementById("authPanel");
+const authPanelTitle = document.getElementById("authPanelTitle");
+const authUsername = document.getElementById("authUsername");
+const authImageInput = document.getElementById("authImageInput");
+const authImageGroup = document.getElementById("authImageGroup");
+const authMessage = document.getElementById("authMessage");
+const authSaveButton = document.getElementById("authSaveButton");
+const authCancelButton = document.getElementById("authCancelButton");
 
 const textContent = document.getElementById("textContent");
 const fontFamily = document.getElementById("fontFamily");
@@ -49,22 +58,18 @@ const MOBILE_REMBG_MAX_EDGE = 960;
 const DESKTOP_REMBG_MAX_EDGE = 2200;
 const MOBILE_PROCESSING_QUALITY = 0.82;
 const DESKTOP_PROCESSING_QUALITY = 0.92;
+const PYTHON_API_BASE_URL = (
+  window.APP_CONFIG?.PYTHON_API_BASE_URL ||
+  window.APP_CONFIG?.PYTHON_API_URL?.replace(/\/remove-background\/?$/, "") ||
+  "http://localhost:9000"
+).replace(/\/$/, "");
 const PYTHON_API_URL =
-  window.APP_CONFIG?.PYTHON_API_URL || "http://localhost:9000/remove-background";
+  window.APP_CONFIG?.PYTHON_API_URL || `${PYTHON_API_BASE_URL}/remove-background`;
+const USER_STORAGE_KEY = "sale-report-username";
 const IS_MOBILE_DEVICE =
   /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(
     navigator.userAgent
   ) || window.matchMedia("(max-width: 920px)").matches;
-
-const REMBG_MODEL_PATHS = {
-  u2net_human_seg:
-    "https://huggingface.co/jellybox/u2net-human-seg/resolve/736b768145e597134968bde9ace5bf8fd19ffa8c/u2net_human_seg.onnx?download=true",
-};
-
-ort.env.wasm.numThreads = 1;
-ort.env.wasm.proxy = false;
-ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.0/dist/";
-ort.env.logLevel = "warning";
 
 const state = {
   background: null,
@@ -73,10 +78,8 @@ const state = {
   selectedTextId: null,
   selectedImageId: null,
   activeLayerType: null,
-  rembg: {
-    session: null,
-    loadingPromise: null,
-    available: true,
+  user: {
+    username: localStorage.getItem(USER_STORAGE_KEY) || "",
   },
   drag: {
     active: false,
@@ -131,6 +134,61 @@ function updateStatus(message) {
 
 function updateBackgroundTitle(fileName) {
   backgroundTitle.textContent = fileName || "ยังไม่มีไฟล์ background";
+}
+
+function getApiUrl(path) {
+  return new URL(path.replace(/^\//, ""), `${PYTHON_API_BASE_URL}/`).toString();
+}
+
+function setAuthMessage(message) {
+  authMessage.textContent = message || "";
+}
+
+function getCleanAuthUsername() {
+  return authUsername.value.trim();
+}
+
+function updateAuthStatus() {
+  if (state.user.username) {
+    authStatus.textContent = `Login อยู่ด้วย username: ${state.user.username}`;
+    logoutButton.hidden = false;
+    return;
+  }
+
+  authStatus.textContent = "ยังไม่ได้ login";
+  logoutButton.hidden = true;
+}
+
+function openAuthPanel(mode) {
+  authPanel.dataset.mode = mode;
+  authPanel.hidden = false;
+  authPanelTitle.textContent = mode === "register" ? "Register" : "Login";
+  authImageGroup.hidden = mode !== "register";
+  authSaveButton.textContent = mode === "register" ? "Save" : "Login";
+  authUsername.value = state.user.username || "";
+  authImageInput.value = "";
+  setAuthMessage("");
+  authUsername.focus();
+}
+
+function closeAuthPanel() {
+  authPanel.hidden = true;
+  authUsername.value = "";
+  authImageInput.value = "";
+  setAuthMessage("");
+}
+
+function setLoggedInUser(username) {
+  state.user.username = username;
+  localStorage.setItem(USER_STORAGE_KEY, username);
+  updateAuthStatus();
+}
+
+function logoutUser() {
+  state.user.username = "";
+  localStorage.removeItem(USER_STORAGE_KEY);
+  updateAuthStatus();
+  setAuthMessage("Logout แล้ว");
 }
 
 function setCanvasPlaceholderVisible(isVisible) {
@@ -252,107 +310,6 @@ function getPixelColor(data, pixelIndex) {
     g: data[offset + 1],
     b: data[offset + 2],
   };
-}
-
-async function getRembgSession() {
-  if (!state.rembg.available) {
-    throw new Error("rembg-web unavailable");
-  }
-
-  if (state.rembg.session) {
-    return state.rembg.session;
-  }
-
-  if (!state.rembg.loadingPromise) {
-    state.rembg.loadingPromise = (async () => {
-      rembgConfig.setCustomModelPath("u2net_human_seg", REMBG_MODEL_PATHS.u2net_human_seg);
-      const session = newSession("u2net_human_seg");
-      state.rembg.session = session;
-      return session;
-    })();
-  }
-
-  return state.rembg.loadingPromise;
-}
-
-function blobToImage(blob) {
-  return new Promise((resolve, reject) => {
-    const objectUrl = URL.createObjectURL(blob);
-    const image = new Image();
-
-    image.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      resolve(image);
-    };
-
-    image.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error("Unable to load processed image"));
-    };
-
-    image.src = objectUrl;
-  });
-}
-
-function canvasToBlob(canvas, type = "image/png", quality = 0.92) {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        reject(new Error("Unable to prepare image for processing"));
-        return;
-      }
-
-      resolve(blob);
-    }, type, quality);
-  });
-}
-
-async function createProcessingFile(file, image) {
-  const maxEdge = IS_MOBILE_DEVICE ? MOBILE_REMBG_MAX_EDGE : DESKTOP_REMBG_MAX_EDGE;
-  const longestSide = Math.max(image.naturalWidth || 0, image.naturalHeight || 0);
-
-  if (!longestSide || longestSide <= maxEdge) {
-    return file;
-  }
-
-  const scale = maxEdge / longestSide;
-  const targetWidth = Math.max(1, Math.round(image.naturalWidth * scale));
-  const targetHeight = Math.max(1, Math.round(image.naturalHeight * scale));
-  const workCanvas = document.createElement("canvas");
-  const workContext = workCanvas.getContext("2d");
-
-  workCanvas.width = targetWidth;
-  workCanvas.height = targetHeight;
-  workContext.drawImage(image, 0, 0, targetWidth, targetHeight);
-
-  const exportType = file.type === "image/png" ? "image/png" : "image/jpeg";
-  const quality = IS_MOBILE_DEVICE ? MOBILE_PROCESSING_QUALITY : DESKTOP_PROCESSING_QUALITY;
-  const blob = await canvasToBlob(workCanvas, exportType, quality);
-
-  return new File([blob], file.name, {
-    type: blob.type || exportType,
-    lastModified: file.lastModified || Date.now(),
-  });
-}
-
-async function removeWithRembg(file, threshold) {
-  const session = await getRembgSession();
-  const result = await remove(file, {
-    session,
-    postProcessMask: !IS_MOBILE_DEVICE,
-    bgcolor: [0, 0, 0, 0],
-    alphaMatting: !IS_MOBILE_DEVICE,
-    alphaMattingForegroundThreshold: Math.max(180, 220 - threshold),
-    alphaMattingBackgroundThreshold: Math.min(60, Math.round(threshold * 0.45)),
-    alphaMattingErodeSize: IS_MOBILE_DEVICE ? 2 : 4,
-    onProgress: (info) => {
-      const progressText =
-        typeof info.progress === "number" ? ` ${Math.round(info.progress)}%` : "";
-      imageStatus.textContent = `${info.step || "processing"}${progressText}`;
-    },
-  });
-
-  return blobToImage(result);
 }
 
 async function removeWithPythonApi(file) {
@@ -503,7 +460,7 @@ async function processPersonLayer(layer) {
       return;
     }
 
-    layer.renderSource = await removeWithPythonApi(layer.originalFile);
+    layer.renderSource = await removeWithPythonApi(layer.processingFile || layer.originalFile);
     layer.processingMode = "python-api";
   } catch (error) {
     layer.renderSource = layer.originalImage;
@@ -806,6 +763,174 @@ function validateImageFile(file) {
   }
 
   return "";
+}
+
+async function fetchUserImage(username) {
+  const response = await fetch(getApiUrl(`/users/${encodeURIComponent(username)}`));
+
+  if (!response.ok) {
+    throw new Error(`login failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+async function registerUser() {
+  const username = getCleanAuthUsername();
+  const file = authImageInput.files?.[0];
+
+  if (!username) {
+    setAuthMessage("กรุณากรอก username");
+    return;
+  }
+
+  if (!file) {
+    setAuthMessage("กรุณาเลือกรูปก่อนกด Save");
+    return;
+  }
+
+  const error = validateImageFile(file);
+
+  if (error) {
+    setAuthMessage(error);
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("username", username);
+  formData.append("file", file, file.name);
+
+  authSaveButton.disabled = true;
+  setAuthMessage("กำลัง save และตัด background ด้วย Python API...");
+
+  try {
+    const response = await fetch(getApiUrl("/register"), {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`register failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    setLoggedInUser(data.username);
+    await loadUserDefaultImage(data);
+    closeAuthPanel();
+    updateStatus(`Register สำเร็จ และโหลดรูป ${data.username}.png แล้ว`);
+  } catch (error) {
+    setAuthMessage("Register ไม่สำเร็จ กรุณาเช็คว่า Python API พร้อมใช้งาน");
+  } finally {
+    authSaveButton.disabled = false;
+  }
+}
+
+async function loginUser() {
+  const username = getCleanAuthUsername();
+
+  if (!username) {
+    setAuthMessage("กรุณากรอก username");
+    return;
+  }
+
+  authSaveButton.disabled = true;
+  setAuthMessage("กำลังค้นหารูปของ username นี้...");
+
+  try {
+    const data = await fetchUserImage(username);
+
+    if (!data.exists || !data.images?.length) {
+      setAuthMessage("ไม่พบรูปของ username นี้ กรุณา Register ก่อน");
+      return;
+    }
+
+    setLoggedInUser(data.username);
+    await loadUserDefaultImage(data);
+    closeAuthPanel();
+    updateStatus(`Login สำเร็จ และโหลดรูป ${data.username}.png แล้ว`);
+  } catch (error) {
+    setAuthMessage("Login ไม่สำเร็จ กรุณาเช็คว่า Python API พร้อมใช้งาน");
+  } finally {
+    authSaveButton.disabled = false;
+  }
+}
+
+async function loadUserDefaultImage(userData) {
+  const imageData = userData.images?.[0];
+
+  if (!imageData?.url) {
+    return;
+  }
+
+  const imageUrl = new URL(imageData.url, `${PYTHON_API_BASE_URL}/`).toString();
+  const response = await fetch(`${imageUrl}?t=${Date.now()}`);
+
+  if (!response.ok) {
+    throw new Error(`image load failed: ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  const fileName = imageData.fileName || `${userData.username}.png`;
+  const file = new File([blob], fileName, { type: blob.type || "image/png" });
+  const objectUrl = URL.createObjectURL(blob);
+  const image = await new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Unable to load user image"));
+    img.src = objectUrl;
+  });
+
+  state.images
+    .filter((item) => item.isUserDefault && item.username === userData.username)
+    .forEach((item) => URL.revokeObjectURL(item.url));
+  state.images = state.images.filter(
+    (item) => !(item.isUserDefault && item.username === userData.username)
+  );
+
+  const layer = createPersonLayer(file, image, objectUrl);
+  layer.name = fileName;
+  layer.username = userData.username;
+  layer.isUserDefault = true;
+  layer.processingMode = "python-api";
+  layer.removeBgEnabled = true;
+  layer.renderSource = image;
+  layer.xRatio = 0.36;
+  layer.yRatio = 0.42;
+
+  state.images.push(layer);
+  state.selectedImageId = layer.id;
+  state.activeLayerType = "image";
+  refreshImageSelector();
+  fillImageEditor();
+  drawCanvas();
+}
+
+async function restoreSavedLogin() {
+  updateAuthStatus();
+
+  if (!state.user.username) {
+    return;
+  }
+
+  try {
+    const data = await fetchUserImage(state.user.username);
+
+    if (data.exists && data.images?.length) {
+      await loadUserDefaultImage(data);
+      updateStatus(`โหลดรูป default ของ ${state.user.username} แล้ว`);
+    }
+  } catch (error) {
+    updateStatus("ยังโหลดรูปจาก username ที่เคย login ไม่สำเร็จ");
+  }
+}
+
+function handleAuthSave() {
+  if (authPanel.dataset.mode === "login") {
+    loginUser();
+    return;
+  }
+
+  registerUser();
 }
 
 function handleBackgroundFile(file) {
@@ -1235,6 +1360,17 @@ function registerDropzone(dropzone, handler) {
   });
 }
 
+openRegisterButton.addEventListener("click", () => openAuthPanel("register"));
+openLoginButton.addEventListener("click", () => openAuthPanel("login"));
+logoutButton.addEventListener("click", logoutUser);
+authSaveButton.addEventListener("click", handleAuthSave);
+authCancelButton.addEventListener("click", closeAuthPanel);
+authUsername.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    handleAuthSave();
+  }
+});
+
 backgroundInput.addEventListener("change", (event) => {
   const file = event.target.files?.[0];
 
@@ -1312,3 +1448,4 @@ fillImageEditor();
 drawCanvas();
 updateStatus("ยังไม่ได้เลือกรูป background");
 updateBackgroundTitle("");
+restoreSavedLogin();

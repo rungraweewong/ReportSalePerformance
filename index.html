@@ -14,6 +14,37 @@
   </head>
   <body>
     <main class="page-shell">
+      <section class="auth-card">
+        <div>
+          <p class="eyebrow">Account</p>
+          <h2>Register / Login รูปคนขาย</h2>
+          <p class="auth-status" id="authStatus">ยังไม่ได้ login</p>
+        </div>
+        <div class="auth-actions">
+          <button class="brand-button" id="openRegisterButton" type="button">Register</button>
+          <button class="ghost-button" id="openLoginButton" type="button">Login</button>
+          <button class="danger-button" id="logoutButton" type="button" hidden>Logout</button>
+        </div>
+        <div class="auth-panel" id="authPanel" hidden>
+          <h3 id="authPanelTitle">Register</h3>
+          <div class="auth-form-grid">
+            <div class="control-group">
+              <label class="field-label" for="authUsername">Username</label>
+              <input id="authUsername" type="text" inputmode="text" placeholder="เช่น 0879878888" />
+            </div>
+            <div class="control-group" id="authImageGroup">
+              <label class="field-label" for="authImageInput">อัปโหลดรูป</label>
+              <input id="authImageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
+            </div>
+          </div>
+          <p class="auth-message" id="authMessage"></p>
+          <div class="button-row compact">
+            <button class="brand-button" id="authSaveButton" type="button">Save</button>
+            <button class="ghost-button" id="authCancelButton" type="button">Cancel</button>
+          </div>
+        </div>
+      </section>
+
       <section class="workspace-grid">
         <aside class="control-card seller-card">
           <div class="section-header">
@@ -33,7 +64,7 @@
             <span class="dropzone-icon small">+</span>
             <span class="dropzone-title">อัปโหลดรูปคนขาย</span>
             <span class="dropzone-subtitle">เลือกได้ไม่จำกัด และลากวางลงบน preview ได้ต่อทันที</span>
-            <span class="dropzone-note">ระบบจะพยายามใช้ rembg-web เพื่อดึงเฉพาะตัวคนออกมา</span>
+            <span class="dropzone-note">ระบบจะใช้ Python API เพื่อดึงเฉพาะตัวคนออกมา</span>
           </label>
 
           <div class="control-group">
@@ -205,14 +236,6 @@
       </section>
     </main>
 
-    <script type="importmap">
-      {
-        "imports": {
-          "onnxruntime-web": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.0/dist/ort.all.min.mjs",
-          "@bunnio/rembg-web": "https://unpkg.com/@bunnio/rembg-web@1.0.2/dist/index.js"
-        }
-      }
-    </script>
     <script src="./config.js"></script>
     <script type="module" src="./script.js"></script>
   </body>
