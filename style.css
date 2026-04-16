@@ -43,6 +43,9 @@ button {
 .page-shell {
   width: min(1360px, calc(100vw - 32px));
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
   padding: 28px 0 48px;
 }
 
@@ -230,11 +233,15 @@ h2 {
   flex-wrap: wrap;
 }
 
-.workspace-grid {
+.text-section {
+  width: 100%;
+}
+
+.media-workspace {
   display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(260px, 320px);
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
   gap: 24px;
-  margin-top: 24px;
+  align-items: start;
 }
 
 .control-card,
@@ -464,8 +471,8 @@ input[type="color"] {
   line-height: 1.6;
 }
 
-@media (max-width: 920px) {
-  .workspace-grid {
+@media (max-width: 1040px) {
+  .media-workspace {
     grid-template-columns: 1fr;
   }
 }
@@ -485,7 +492,8 @@ input[type="color"] {
   }
 
   .control-card,
-  .preview-card {
+  .preview-card,
+  .auth-card {
     padding: 20px;
     border-radius: 24px;
   }

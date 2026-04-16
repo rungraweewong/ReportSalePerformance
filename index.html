@@ -45,97 +45,7 @@
         </div>
       </section>
 
-      <section class="workspace-grid">
-        <aside class="control-card seller-card">
-          <div class="section-header">
-            <div>
-              <p class="eyebrow">Seller Image</p>
-              <h2>จัดการรูปคนขาย</h2>
-            </div>
-          </div>
-
-          <label class="upload-dropzone secondary" id="personDropzone" for="personImageInput">
-            <input
-              id="personImageInput"
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
-              multiple
-            />
-            <span class="dropzone-icon small">+</span>
-            <span class="dropzone-title">อัปโหลดรูปคนขาย</span>
-            <span class="dropzone-subtitle">เลือกได้ไม่จำกัด และลากวางลงบน preview ได้ต่อทันที</span>
-            <span class="dropzone-note">ระบบจะใช้ Python API เพื่อดึงเฉพาะตัวคนออกมา</span>
-          </label>
-
-          <div class="control-group">
-            <label class="field-label" for="selectedImageItem">เลือกรูปที่ต้องการแก้</label>
-            <select id="selectedImageItem"></select>
-          </div>
-
-          <div class="control-group">
-            <label class="field-label" for="imageScale">ขนาดรูป (%)</label>
-            <input id="imageScale" type="range" min="5" max="120" step="1" value="28" />
-          </div>
-
-          <div class="field-grid">
-            <label class="toggle-card">
-              <input id="removeBgEnabled" type="checkbox" checked />
-              <span>เปิดการตัด background</span>
-            </label>
-            <div class="stat-card">
-              <span class="stat-label">สถานะ</span>
-              <strong id="imageStatus">ยังไม่มีรูปคนขาย</strong>
-            </div>
-          </div>
-
-          <div class="button-row">
-            <button class="danger-button" id="removeImageButton" type="button" disabled>
-              ลบรูป
-            </button>
-          </div>
-        </aside>
-
-        <section class="preview-card">
-          <div class="section-header">
-            <div>
-              <p class="eyebrow">Live Preview</p>
-              <h2 id="backgroundTitle">ยังไม่มีไฟล์ background</h2>
-              <p class="preview-status" id="statusText">ยังไม่ได้เลือกรูป background</p>
-            </div>
-            <div class="preview-actions">
-              <button class="ghost-button" id="clearBackgroundButton" type="button" disabled>
-                ล้างรูป
-              </button>
-              <div class="preview-action-stack">
-                <button class="brand-button" id="downloadButton" type="button" disabled>
-                  ดาวน์โหลดภาพ
-                </button>
-                <label class="brand-button upload-button" id="backgroundDropzone" for="backgroundInput">
-                  <input
-                    id="backgroundInput"
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif"
-                  />
-                  อัปโหลด Background
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <div class="canvas-stage" id="canvasStage">
-            <canvas id="previewCanvas" width="1200" height="675"></canvas>
-            <div class="canvas-placeholder" id="canvasPlaceholder">
-              อัปโหลดรูป background ก่อน แล้วข้อความของคุณจะแสดงบนภาพตรงนี้
-            </div>
-          </div>
-
-          <div class="canvas-meta">
-            <p id="canvasInfo">Canvas เริ่มต้น 1200 x 675 px</p>
-            <p>ข้อความทั้งหมดจะวางอ้างอิงจากขนาดจริงของ background ที่อัปโหลด</p>
-          </div>
-        </section>
-
-        <aside class="control-card">
+      <section class="control-card text-section">
           <div class="section-header">
             <div>
               <p class="eyebrow">Text Control</p>
@@ -232,7 +142,98 @@
               ลบข้อความ
             </button>
           </div>
+      </section>
+
+      <section class="media-workspace">
+        <aside class="control-card seller-card">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Seller Image</p>
+              <h2>จัดการรูปคนขาย</h2>
+            </div>
+          </div>
+
+          <label class="upload-dropzone secondary" id="personDropzone" for="personImageInput">
+            <input
+              id="personImageInput"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              multiple
+            />
+            <span class="dropzone-icon small">+</span>
+            <span class="dropzone-title">อัปโหลดรูปคนขาย</span>
+            <span class="dropzone-subtitle">เลือกได้ไม่จำกัด และลากวางลงบน preview ได้ต่อทันที</span>
+            <span class="dropzone-note">ระบบจะใช้ Python API เพื่อดึงเฉพาะตัวคนออกมา</span>
+          </label>
+
+          <div class="control-group">
+            <label class="field-label" for="selectedImageItem">เลือกรูปที่ต้องการแก้</label>
+            <select id="selectedImageItem"></select>
+          </div>
+
+          <div class="control-group">
+            <label class="field-label" for="imageScale">ขนาดรูป (%)</label>
+            <input id="imageScale" type="range" min="5" max="120" step="1" value="28" />
+          </div>
+
+          <div class="field-grid">
+            <label class="toggle-card">
+              <input id="removeBgEnabled" type="checkbox" checked />
+              <span>เปิดการตัด background</span>
+            </label>
+            <div class="stat-card">
+              <span class="stat-label">สถานะ</span>
+              <strong id="imageStatus">ยังไม่มีรูปคนขาย</strong>
+            </div>
+          </div>
+
+          <div class="button-row">
+            <button class="danger-button" id="removeImageButton" type="button" disabled>
+              ลบรูป
+            </button>
+          </div>
         </aside>
+
+        <section class="preview-card">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Live Preview</p>
+              <h2 id="backgroundTitle">ยังไม่มีไฟล์ background</h2>
+              <p class="preview-status" id="statusText">ยังไม่ได้เลือกรูป background</p>
+            </div>
+            <div class="preview-actions">
+              <button class="ghost-button" id="clearBackgroundButton" type="button" disabled>
+                ล้างรูป
+              </button>
+              <div class="preview-action-stack">
+                <button class="brand-button" id="downloadButton" type="button" disabled>
+                  ดาวน์โหลดภาพ
+                </button>
+                <label class="brand-button upload-button" id="backgroundDropzone" for="backgroundInput">
+                  <input
+                    id="backgroundInput"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                  />
+                  อัปโหลด Background
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="canvas-stage" id="canvasStage">
+            <canvas id="previewCanvas" width="1200" height="675"></canvas>
+            <div class="canvas-placeholder" id="canvasPlaceholder">
+              อัปโหลดรูป background ก่อน แล้วข้อความของคุณจะแสดงบนภาพตรงนี้
+            </div>
+          </div>
+
+          <div class="canvas-meta">
+            <p id="canvasInfo">Canvas เริ่มต้น 1200 x 675 px</p>
+            <p>ข้อความทั้งหมดจะวางอ้างอิงจากขนาดจริงของ background ที่อัปโหลด</p>
+          </div>
+        </section>
+
       </section>
     </main>
 
