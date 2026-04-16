@@ -316,13 +316,21 @@ async function removeWithPythonApi(file) {
   const formData = new FormData();
   formData.append("file", file, file.name);
 
+  imageStatus.textContent = `กำลังเรียก Python API: ${PYTHON_API_URL}`;
+  console.info("Calling remove-background API", PYTHON_API_URL, {
+    fileName: file.name,
+    fileSize: file.size,
+    fileType: file.type,
+  });
+
   const response = await fetch(PYTHON_API_URL, {
     method: "POST",
     body: formData,
   });
 
   if (!response.ok) {
-    throw new Error(`python api failed: ${response.status}`);
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`python api failed: ${response.status} ${errorText}`);
   }
 
   const blob = await response.blob();
@@ -1152,7 +1160,13 @@ function handlePersonFiles(fileList) {
           if (IS_MOBILE_DEVICE) {
             imageStatus.textContent = "Preparing image for mobile...";
           }
-          layer.processingFile = await createProcessingFile(file, image);
+          try {
+            layer.processingFile = await createProcessingFile(file, image);
+          } catch (error) {
+            console.warn("Image preprocessing failed, using original file for API", error);
+            layer.processingFile = file;
+          }
+
           imageStatus.textContent = "Removing seller background...";
           await processPersonLayer(layer);
           fillImageEditor();
