@@ -471,6 +471,58 @@ input[type="color"] {
   line-height: 1.6;
 }
 
+.download-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(31, 24, 19, 0.68);
+}
+
+.download-preview-panel {
+  width: min(960px, 100%);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  padding: 22px;
+  border-radius: 28px;
+  background: var(--panel-strong);
+  box-shadow: 0 30px 90px rgba(31, 24, 19, 0.35);
+}
+
+.download-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.download-preview-help {
+  margin: 12px 0 18px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.download-preview-image {
+  display: block;
+  width: 100%;
+  max-height: 68vh;
+  object-fit: contain;
+  border-radius: 18px;
+  background: #fff;
+  border: 1px solid var(--line);
+  -webkit-touch-callout: default;
+  user-select: auto;
+}
+
+.download-preview-link {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+  text-decoration: none;
+}
+
 @media (max-width: 1040px) {
   .media-workspace {
     grid-template-columns: 1fr;

@@ -1490,6 +1490,54 @@ async function shareImageIfAvailable(blob, fileName) {
   return true;
 }
 
+function showDownloadPreview(blob, fileName) {
+  const previousOverlay = document.querySelector(".download-preview-overlay");
+
+  if (previousOverlay) {
+    previousOverlay.remove();
+  }
+
+  const objectUrl = URL.createObjectURL(blob);
+  const overlay = document.createElement("div");
+  overlay.className = "download-preview-overlay";
+  overlay.innerHTML = `
+    <div class="download-preview-panel" role="dialog" aria-modal="true">
+      <div class="download-preview-header">
+        <div>
+          <p class="eyebrow">Download Preview</p>
+          <h2>บันทึกรูปใน LINE</h2>
+        </div>
+        <button class="ghost-button" type="button" data-close-preview>ปิด</button>
+      </div>
+      <p class="download-preview-help">
+        LINE browser ไม่รองรับการดาวน์โหลดไฟล์ตรง ๆ ให้กดค้างที่รูปด้านล่าง แล้วเลือก “บันทึกรูปภาพ” หรือเปิดหน้านี้ใน Safari/Chrome
+      </p>
+      <img class="download-preview-image" alt="${fileName}" />
+      <a class="brand-button download-preview-link" download="${fileName}">ลองดาวน์โหลดอีกครั้ง</a>
+    </div>
+  `;
+
+  const image = overlay.querySelector(".download-preview-image");
+  const link = overlay.querySelector(".download-preview-link");
+  const closeButton = overlay.querySelector("[data-close-preview]");
+
+  image.src = objectUrl;
+  link.href = objectUrl;
+  closeButton.addEventListener("click", () => {
+    overlay.remove();
+    URL.revokeObjectURL(objectUrl);
+  });
+
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) {
+      overlay.remove();
+      URL.revokeObjectURL(objectUrl);
+    }
+  });
+
+  document.body.append(overlay);
+}
+
 async function downloadCanvasImage() {
   if (!state.background) {
     updateStatus("กรุณาอัปโหลด background ก่อนดาวน์โหลด");
@@ -1499,7 +1547,6 @@ async function downloadCanvasImage() {
   const fileName = getDownloadFileName();
   const isLineBrowser = /Line\//i.test(navigator.userAgent);
   const shouldPreferShare = isLineBrowser || IS_MOBILE_DEVICE;
-  const lineFallbackWindow = isLineBrowser ? window.open("about:blank", "_blank") : null;
 
   try {
     drawCanvas({ hideSelection: true });
@@ -1507,29 +1554,19 @@ async function downloadCanvasImage() {
     drawCanvas();
 
     if (shouldPreferShare && (await shareImageIfAvailable(blob, fileName))) {
-      if (lineFallbackWindow && !lineFallbackWindow.closed) {
-        lineFallbackWindow.close();
-      }
       updateStatus("ส่งรูปไปที่ share sheet แล้ว หากใช้ LINE ให้เลือกบันทึกรูปจากเมนูแชร์");
       return;
     }
 
     if (isLineBrowser) {
-      const didOpen = openBlobInNewTab(blob, lineFallbackWindow);
-      updateStatus(
-        didOpen
-          ? "LINE browser อาจไม่รองรับ download ตรง ๆ รูปถูกเปิดในหน้าใหม่แล้ว ให้กดค้างที่รูปเพื่อบันทึก"
-          : "LINE browser บล็อกการดาวน์โหลด กรุณาเปิดใน Safari/Chrome แล้วดาวน์โหลดอีกครั้ง"
-      );
+      showDownloadPreview(blob, fileName);
+      updateStatus("LINE browser ไม่รองรับ download ตรง ๆ ให้กดค้างที่รูป preview เพื่อบันทึก");
       return;
     }
 
     triggerBlobDownload(blob, fileName);
     updateStatus(`ดาวน์โหลดภาพ ${fileName} แล้ว`);
   } catch (error) {
-    if (lineFallbackWindow && !lineFallbackWindow.closed) {
-      lineFallbackWindow.close();
-    }
     drawCanvas();
     console.error("Download failed", error);
     updateStatus("ดาวน์โหลดไม่สำเร็จ กรุณาลองเปิดเว็บด้วย Safari หรือ Chrome");
