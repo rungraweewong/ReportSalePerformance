@@ -1436,22 +1436,104 @@ function stopCanvasDrag() {
   canvas.style.cursor = "default";
 }
 
-function downloadCanvasImage() {
+function getDownloadFileName() {
+  const safeName = (state.background?.fileName || "sale-report")
+    .replace(/\.[^/.]+$/, "")
+    .replace(/\s+/g, "-");
+
+  return `${safeName}-report.png`;
+}
+
+function openBlobInNewTab(blob, targetWindow = null) {
+  const objectUrl = URL.createObjectURL(blob);
+
+  if (targetWindow && !targetWindow.closed) {
+    targetWindow.location.href = objectUrl;
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    return true;
+  }
+
+  const openedWindow = window.open(objectUrl, "_blank", "noopener,noreferrer");
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  return Boolean(openedWindow);
+}
+
+function triggerBlobDownload(blob, fileName) {
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = objectUrl;
+  link.download = fileName;
+  link.rel = "noopener";
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 2_000);
+}
+
+async function shareImageIfAvailable(blob, fileName) {
+  if (!navigator.canShare || !navigator.share || typeof File === "undefined") {
+    return false;
+  }
+
+  const file = new File([blob], fileName, { type: "image/png" });
+
+  if (!navigator.canShare({ files: [file] })) {
+    return false;
+  }
+
+  await navigator.share({
+    files: [file],
+    title: "Sale Report",
+    text: "ภาพรายงานยอดขาย",
+  });
+  return true;
+}
+
+async function downloadCanvasImage() {
   if (!state.background) {
     updateStatus("กรุณาอัปโหลด background ก่อนดาวน์โหลด");
     return;
   }
 
-  const link = document.createElement("a");
-  const safeName = (state.background.fileName || "sale-report")
-    .replace(/\.[^/.]+$/, "")
-    .replace(/\s+/g, "-");
+  const fileName = getDownloadFileName();
+  const isLineBrowser = /Line\//i.test(navigator.userAgent);
+  const shouldPreferShare = isLineBrowser || IS_MOBILE_DEVICE;
+  const lineFallbackWindow = isLineBrowser ? window.open("about:blank", "_blank") : null;
 
-  drawCanvas({ hideSelection: true });
-  link.href = canvas.toDataURL("image/png");
-  link.download = `${safeName}-report.png`;
-  link.click();
-  drawCanvas();
+  try {
+    drawCanvas({ hideSelection: true });
+    const blob = await canvasToBlob(canvas, "image/png");
+    drawCanvas();
+
+    if (shouldPreferShare && (await shareImageIfAvailable(blob, fileName))) {
+      if (lineFallbackWindow && !lineFallbackWindow.closed) {
+        lineFallbackWindow.close();
+      }
+      updateStatus("ส่งรูปไปที่ share sheet แล้ว หากใช้ LINE ให้เลือกบันทึกรูปจากเมนูแชร์");
+      return;
+    }
+
+    if (isLineBrowser) {
+      const didOpen = openBlobInNewTab(blob, lineFallbackWindow);
+      updateStatus(
+        didOpen
+          ? "LINE browser อาจไม่รองรับ download ตรง ๆ รูปถูกเปิดในหน้าใหม่แล้ว ให้กดค้างที่รูปเพื่อบันทึก"
+          : "LINE browser บล็อกการดาวน์โหลด กรุณาเปิดใน Safari/Chrome แล้วดาวน์โหลดอีกครั้ง"
+      );
+      return;
+    }
+
+    triggerBlobDownload(blob, fileName);
+    updateStatus(`ดาวน์โหลดภาพ ${fileName} แล้ว`);
+  } catch (error) {
+    if (lineFallbackWindow && !lineFallbackWindow.closed) {
+      lineFallbackWindow.close();
+    }
+    drawCanvas();
+    console.error("Download failed", error);
+    updateStatus("ดาวน์โหลดไม่สำเร็จ กรุณาลองเปิดเว็บด้วย Safari หรือ Chrome");
+  }
 }
 
 function registerDropzone(dropzone, handler) {
