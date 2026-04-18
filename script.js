@@ -1436,7 +1436,7 @@ function stopCanvasDrag() {
   canvas.style.cursor = "default";
 }
 
-function getDownloadFileName() {
+function getOutputFileName() {
   const safeName = (state.background?.fileName || "sale-report")
     .replace(/\.[^/.]+$/, "")
     .replace(/\s+/g, "-");
@@ -1538,13 +1538,13 @@ function showDownloadPreview(blob, fileName) {
   document.body.append(overlay);
 }
 
-async function downloadCanvasImage() {
+async function saveOrShareCanvasImage() {
   if (!state.background) {
-    updateStatus("กรุณาอัปโหลด background ก่อนดาวน์โหลด");
+    updateStatus("กรุณาอัปโหลด background ก่อนแชร์หรือบันทึกรูป");
     return;
   }
 
-  const fileName = getDownloadFileName();
+  const fileName = getOutputFileName();
   const isLineBrowser = /Line\//i.test(navigator.userAgent);
   const shouldPreferShare = isLineBrowser || IS_MOBILE_DEVICE;
 
@@ -1554,22 +1554,22 @@ async function downloadCanvasImage() {
     drawCanvas();
 
     if (shouldPreferShare && (await shareImageIfAvailable(blob, fileName))) {
-      updateStatus("ส่งรูปไปที่ share sheet แล้ว หากใช้ LINE ให้เลือกบันทึกรูปจากเมนูแชร์");
+      updateStatus("เปิดเมนูแชร์แล้ว คุณสามารถบันทึกหรือส่งรูปต่อได้จากเมนูนี้");
       return;
     }
 
     if (isLineBrowser) {
       showDownloadPreview(blob, fileName);
-      updateStatus("LINE browser ไม่รองรับ download ตรง ๆ ให้กดค้างที่รูป preview เพื่อบันทึก");
+      updateStatus("LINE browser รุ่นนี้ไม่รองรับการแชร์ไฟล์ ให้กดค้างที่รูป preview เพื่อบันทึก");
       return;
     }
 
     triggerBlobDownload(blob, fileName);
-    updateStatus(`ดาวน์โหลดภาพ ${fileName} แล้ว`);
+    updateStatus(`บันทึกรูป ${fileName} แล้ว`);
   } catch (error) {
     drawCanvas();
     console.error("Download failed", error);
-    updateStatus("ดาวน์โหลดไม่สำเร็จ กรุณาลองเปิดเว็บด้วย Safari หรือ Chrome");
+    updateStatus("แชร์/บันทึกรูปไม่สำเร็จ กรุณาลองเปิดเว็บด้วย Safari หรือ Chrome");
   }
 }
 
@@ -1623,7 +1623,7 @@ clearBackgroundButton.addEventListener("click", clearBackground);
 addTextButton.addEventListener("click", addTextItem);
 removeTextButton.addEventListener("click", removeSelectedText);
 duplicateTextButton.addEventListener("click", duplicateSelectedText);
-downloadButton.addEventListener("click", downloadCanvasImage);
+downloadButton.addEventListener("click", saveOrShareCanvasImage);
 removeImageButton.addEventListener("click", removeSelectedImage);
 alignLeftButton.addEventListener("click", () => alignSelectedText("left"));
 alignCenterButton.addEventListener("click", () => alignSelectedText("center"));
