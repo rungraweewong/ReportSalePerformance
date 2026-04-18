@@ -312,6 +312,88 @@ function getPixelColor(data, pixelIndex) {
   };
 }
 
+function blobToImage(blob) {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(blob);
+    const image = new Image();
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(image);
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Unable to load processed image"));
+    };
+
+    image.src = objectUrl;
+  });
+}
+
+function canvasToBlob(canvas, type = "image/png", quality = 0.92) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("Unable to prepare image for processing"));
+        return;
+      }
+
+      resolve(blob);
+    }, type, quality);
+  });
+}
+
+function imageHasTransparency(image) {
+  const workCanvas = document.createElement("canvas");
+  const workContext = workCanvas.getContext("2d", { willReadFrequently: true });
+  const maxEdge = 360;
+  const longestSide = Math.max(image.naturalWidth || 0, image.naturalHeight || 0);
+  const scale = longestSide > maxEdge ? maxEdge / longestSide : 1;
+
+  workCanvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+  workCanvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+  workContext.drawImage(image, 0, 0, workCanvas.width, workCanvas.height);
+
+  const { data } = workContext.getImageData(0, 0, workCanvas.width, workCanvas.height);
+
+  for (let index = 3; index < data.length; index += 4) {
+    if (data[index] < 250) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+async function createProcessingFile(file, image) {
+  const maxEdge = IS_MOBILE_DEVICE ? MOBILE_REMBG_MAX_EDGE : DESKTOP_REMBG_MAX_EDGE;
+  const longestSide = Math.max(image.naturalWidth || 0, image.naturalHeight || 0);
+
+  if (!longestSide || longestSide <= maxEdge) {
+    return file;
+  }
+
+  const scale = maxEdge / longestSide;
+  const targetWidth = Math.max(1, Math.round(image.naturalWidth * scale));
+  const targetHeight = Math.max(1, Math.round(image.naturalHeight * scale));
+  const workCanvas = document.createElement("canvas");
+  const workContext = workCanvas.getContext("2d");
+
+  workCanvas.width = targetWidth;
+  workCanvas.height = targetHeight;
+  workContext.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+  const exportType = file.type === "image/png" ? "image/png" : "image/jpeg";
+  const quality = IS_MOBILE_DEVICE ? MOBILE_PROCESSING_QUALITY : DESKTOP_PROCESSING_QUALITY;
+  const blob = await canvasToBlob(workCanvas, exportType, quality);
+
+  return new File([blob], file.name, {
+    type: blob.type || exportType,
+    lastModified: file.lastModified || Date.now(),
+  });
+}
+
 async function removeWithPythonApi(file) {
   const formData = new FormData();
   formData.append("file", file, file.name);
@@ -333,8 +415,23 @@ async function removeWithPythonApi(file) {
     throw new Error(`python api failed: ${response.status} ${errorText}`);
   }
 
+  const contentType = response.headers.get("content-type") || "";
   const blob = await response.blob();
-  return blobToImage(blob);
+
+  if (!contentType.includes("image/png") || blob.size < 2048) {
+    const errorText = await blob.text().catch(() => "");
+    throw new Error(
+      `python api returned invalid image: ${contentType || "unknown type"}, ${blob.size} bytes ${errorText}`
+    );
+  }
+
+  const image = await blobToImage(blob);
+
+  if (!imageHasTransparency(image)) {
+    throw new Error("python api returned PNG without transparency");
+  }
+
+  return image;
 }
 
 function removeImageBackground(image, threshold) {
@@ -471,9 +568,11 @@ async function processPersonLayer(layer) {
     layer.renderSource = await removeWithPythonApi(layer.processingFile || layer.originalFile);
     layer.processingMode = "python-api";
   } catch (error) {
+    console.error("Python background removal failed", error);
     layer.renderSource = layer.originalImage;
     layer.processingMode = "original";
-    imageStatus.textContent = "Python API ไม่พร้อม ใช้รูปต้นฉบับแทน";
+    imageStatus.textContent = "ลบ background ไม่สำเร็จ ใช้รูปต้นฉบับแทน";
+    throw error;
   } finally {
     layer.isProcessing = false;
   }
@@ -1173,10 +1272,11 @@ function handlePersonFiles(fileList) {
           drawCanvas();
           updateStatus(`ลบพื้นหลังรูป ${file.name} สำเร็จ`);
         } catch (error) {
+          console.error("Seller image processing failed", error);
           layer.isProcessing = false;
           fillImageEditor();
           drawCanvas();
-          updateStatus(`ประมวลผลรูป ${file.name} ไม่สำเร็จ ใช้รูปต้นฉบับแทน`);
+          updateStatus(`ลบ background รูป ${file.name} ไม่สำเร็จ ใช้รูปต้นฉบับแทน`);
         }
       })();
     };
