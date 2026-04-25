@@ -523,6 +523,19 @@ input[type="color"] {
   text-decoration: none;
 }
 
+.download-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.download-preview-actions .brand-button,
+.download-preview-actions .ghost-button {
+  flex: 1 1 220px;
+  justify-content: center;
+}
+
 @media (max-width: 1040px) {
   .media-workspace {
     grid-template-columns: 1fr;

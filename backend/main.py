@@ -2,8 +2,9 @@ from io import BytesIO
 import os
 from pathlib import Path
 import re
+from uuid import uuid4
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from PIL import Image, UnidentifiedImageError
@@ -15,6 +16,7 @@ from rembg import remove
 
 MAX_FILE_SIZE = 8 * 1024 * 1024
 UPLOAD_ROOT = Path(os.getenv("UPLOAD_ROOT", Path(__file__).resolve().parent / "uploads"))
+EXPORT_ROOT = Path(os.getenv("EXPORT_ROOT", Path(__file__).resolve().parent / "exports"))
 USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9._-]{3,80}$")
 ALLOWED_MIME_TYPES = {
     "image/png",
@@ -85,6 +87,12 @@ def build_user_image_response(username: str) -> JSONResponse:
     )
 
 
+def sanitize_file_stem(file_name: str) -> str:
+    stem = Path(file_name or "sale-report").stem
+    normalized = re.sub(r"[^A-Za-z0-9._-]+", "-", stem).strip("-._")
+    return normalized or "sale-report"
+
+
 app = FastAPI(title="Sale Report Background Removal API")
 
 allowed_origins = os.getenv("ALLOWED_ORIGINS", "*")
@@ -150,3 +158,36 @@ async def get_user_image(username: str, filename: str) -> FileResponse:
         raise HTTPException(status_code=404, detail="Image not found")
 
     return FileResponse(image_path, media_type="image/png", filename=expected_filename)
+
+
+@app.post("/export-report")
+async def export_report(request: Request, file: UploadFile = File(...)) -> JSONResponse:
+    input_bytes = await file.read()
+    validate_image_bytes(file, input_bytes)
+
+    export_stem = sanitize_file_stem(file.filename)
+    export_name = f"{export_stem}-{uuid4().hex[:10]}.png"
+    EXPORT_ROOT.mkdir(parents=True, exist_ok=True)
+    export_path = EXPORT_ROOT / export_name
+    export_path.write_bytes(input_bytes)
+
+    export_url = str(request.url_for("get_exported_report", filename=export_name))
+    return JSONResponse(
+        {
+            "fileName": export_name,
+            "url": export_url,
+            "relativeUrl": f"/exports/{export_name}",
+            "size": export_path.stat().st_size,
+        }
+    )
+
+
+@app.get("/exports/{filename}", name="get_exported_report")
+async def get_exported_report(filename: str) -> FileResponse:
+    safe_name = Path(filename).name
+    export_path = EXPORT_ROOT / safe_name
+
+    if not export_path.exists():
+        raise HTTPException(status_code=404, detail="Export not found")
+
+    return FileResponse(export_path, media_type="image/png", filename=safe_name)

@@ -794,6 +794,14 @@ function drawSelectionOutline(x, y, width, height) {
   canvasContext.restore();
 }
 
+function hasCanvasContent() {
+  const hasBackground = Boolean(state.background?.image);
+  const hasImages = state.images.length > 0;
+  const hasTexts = state.texts.some((item) => item.content.trim().length > 0);
+
+  return hasBackground || hasImages || hasTexts;
+}
+
 function drawCanvas(options = {}) {
   const { hideSelection = false } = options;
 
@@ -845,7 +853,7 @@ function drawCanvas(options = {}) {
     }
   });
 
-  downloadButton.disabled = !state.background;
+  downloadButton.disabled = !hasCanvasContent();
 }
 
 function validateImageFile(file) {
@@ -1437,9 +1445,12 @@ function stopCanvasDrag() {
 }
 
 function getOutputFileName() {
-  const safeName = (state.background?.fileName || "sale-report")
-    .replace(/\.[^/.]+$/, "")
-    .replace(/\s+/g, "-");
+  const baseName =
+    state.background?.fileName ||
+    state.images[0]?.name ||
+    state.user.username ||
+    "sale-report";
+  const safeName = baseName.replace(/\.[^/.]+$/, "").replace(/\s+/g, "-");
 
   return `${safeName}-report.png`;
 }
@@ -1471,67 +1482,130 @@ function triggerBlobDownload(blob, fileName) {
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 2_000);
 }
 
-async function shareImageIfAvailable(blob, fileName) {
-  if (!navigator.canShare || !navigator.share || typeof File === "undefined") {
-    return false;
+async function exportCanvasForSharing(blob, fileName) {
+  const formData = new FormData();
+  formData.append("file", new File([blob], fileName, { type: "image/png" }));
+
+  console.info("Calling export-report API", getApiUrl("/export-report"));
+  const response = await fetch(getApiUrl("/export-report"), {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    let detail = "";
+
+    try {
+      const payload = await response.json();
+      detail = payload?.detail || payload?.message || "";
+    } catch (error) {
+      detail = "";
+    }
+
+    throw new Error(detail || `Export failed (${response.status})`);
   }
 
-  const file = new File([blob], fileName, { type: "image/png" });
+  const payload = await response.json();
 
-  if (!navigator.canShare({ files: [file] })) {
+  if (!payload?.url) {
+    throw new Error("Export API did not return image URL");
+  }
+
+  return {
+    ...payload,
+    absoluteUrl: new URL(payload.url, `${PYTHON_API_BASE_URL}/`).toString(),
+  };
+}
+
+async function shareExportedUrlIfAvailable(exportedImage, fileName) {
+  if (!navigator.share) {
     return false;
   }
 
   await navigator.share({
-    files: [file],
     title: "Sale Report",
-    text: "ภาพรายงานยอดขาย",
+    text: `ภาพรายงานยอดขาย: ${fileName}`,
+    url: exportedImage.absoluteUrl,
   });
   return true;
 }
 
-function showDownloadPreview(blob, fileName) {
+function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    return navigator.clipboard.writeText(text);
+  }
+
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.setAttribute("readonly", "");
+  textArea.style.position = "absolute";
+  textArea.style.left = "-9999px";
+  document.body.append(textArea);
+  textArea.select();
+
+  try {
+    document.execCommand("copy");
+  } finally {
+    textArea.remove();
+  }
+
+  return Promise.resolve();
+}
+
+function showDownloadPreview(imageUrl, fileName) {
   const previousOverlay = document.querySelector(".download-preview-overlay");
 
   if (previousOverlay) {
     previousOverlay.remove();
   }
 
-  const objectUrl = URL.createObjectURL(blob);
   const overlay = document.createElement("div");
   overlay.className = "download-preview-overlay";
   overlay.innerHTML = `
     <div class="download-preview-panel" role="dialog" aria-modal="true">
       <div class="download-preview-header">
         <div>
-          <p class="eyebrow">Download Preview</p>
-          <h2>บันทึกรูปใน LINE</h2>
+          <p class="eyebrow">Share Preview</p>
+          <h2>แชร์หรือบันทึกรูปจากลิงก์จริง</h2>
         </div>
         <button class="ghost-button" type="button" data-close-preview>ปิด</button>
       </div>
       <p class="download-preview-help">
-        LINE browser ไม่รองรับการดาวน์โหลดไฟล์ตรง ๆ ให้กดค้างที่รูปด้านล่าง แล้วเลือก “บันทึกรูปภาพ” หรือเปิดหน้านี้ใน Safari/Chrome
+        LINE browser บางรุ่นไม่ยอมแชร์ไฟล์จากหน้าเว็บตรง ๆ ตอนนี้เราแปลงเป็นลิงก์รูปจริงให้แล้ว คุณสามารถกดเปิดรูป, คัดลอกลิงก์ หรือแชร์ต่อจากลิงก์นี้ได้เลย
       </p>
       <img class="download-preview-image" alt="${fileName}" />
-      <a class="brand-button download-preview-link" download="${fileName}">ลองดาวน์โหลดอีกครั้ง</a>
+      <div class="download-preview-actions">
+        <a class="brand-button download-preview-link" target="_blank" rel="noopener noreferrer">เปิดรูป</a>
+        <button class="ghost-button" type="button" data-copy-link>คัดลอกลิงก์</button>
+      </div>
     </div>
   `;
 
   const image = overlay.querySelector(".download-preview-image");
   const link = overlay.querySelector(".download-preview-link");
   const closeButton = overlay.querySelector("[data-close-preview]");
+  const copyButton = overlay.querySelector("[data-copy-link]");
 
-  image.src = objectUrl;
-  link.href = objectUrl;
+  image.src = imageUrl;
+  link.href = imageUrl;
+  link.textContent = "เปิดรูป";
   closeButton.addEventListener("click", () => {
     overlay.remove();
-    URL.revokeObjectURL(objectUrl);
   });
 
   overlay.addEventListener("click", (event) => {
     if (event.target === overlay) {
       overlay.remove();
-      URL.revokeObjectURL(objectUrl);
+    }
+  });
+
+  copyButton.addEventListener("click", async () => {
+    try {
+      await copyText(imageUrl);
+      updateStatus("คัดลอกลิงก์รูปแล้ว");
+    } catch (error) {
+      console.error("Copy link failed", error);
+      updateStatus("คัดลอกลิงก์ไม่สำเร็จ กรุณาเปิดรูปแล้วคัดลอกลิงก์เอง");
     }
   });
 
@@ -1539,8 +1613,8 @@ function showDownloadPreview(blob, fileName) {
 }
 
 async function saveOrShareCanvasImage() {
-  if (!state.background) {
-    updateStatus("กรุณาอัปโหลด background ก่อนแชร์หรือบันทึกรูป");
+  if (!hasCanvasContent()) {
+    updateStatus("ยังไม่มีข้อมูลบน canvas สำหรับแชร์หรือบันทึกรูป");
     return;
   }
 
@@ -1553,23 +1627,26 @@ async function saveOrShareCanvasImage() {
     const blob = await canvasToBlob(canvas, "image/png");
     drawCanvas();
 
-    if (shouldPreferShare && (await shareImageIfAvailable(blob, fileName))) {
-      updateStatus("เปิดเมนูแชร์แล้ว คุณสามารถบันทึกหรือส่งรูปต่อได้จากเมนูนี้");
+    updateStatus("กำลังสร้างลิงก์รูปจาก backend สำหรับแชร์...");
+    const exportedImage = await exportCanvasForSharing(blob, fileName);
+
+    if (shouldPreferShare && (await shareExportedUrlIfAvailable(exportedImage, fileName))) {
+      updateStatus("เปิดเมนูแชร์แล้ว คุณสามารถส่งลิงก์รูปต่อได้จากเมนูนี้");
       return;
     }
 
     if (isLineBrowser) {
-      showDownloadPreview(blob, fileName);
-      updateStatus("LINE browser รุ่นนี้ไม่รองรับการแชร์ไฟล์ ให้กดค้างที่รูป preview เพื่อบันทึก");
+      showDownloadPreview(exportedImage.absoluteUrl, fileName);
+      updateStatus("สร้างลิงก์รูปแล้ว เปิดรูปหรือคัดลอกลิงก์ไปแชร์ต่อได้เลย");
       return;
     }
 
-    triggerBlobDownload(blob, fileName);
-    updateStatus(`บันทึกรูป ${fileName} แล้ว`);
+    window.open(exportedImage.absoluteUrl, "_blank", "noopener,noreferrer");
+    updateStatus("สร้างลิงก์รูปแล้ว เปิดรูปในแท็บใหม่ให้เรียบร้อย");
   } catch (error) {
     drawCanvas();
     console.error("Download failed", error);
-    updateStatus("แชร์/บันทึกรูปไม่สำเร็จ กรุณาลองเปิดเว็บด้วย Safari หรือ Chrome");
+    updateStatus("แชร์/บันทึกรูปไม่สำเร็จ กรุณาลองอีกครั้ง");
   }
 }
 
