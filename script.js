@@ -434,50 +434,87 @@ async function createProcessingFile(file, image) {
   });
 }
 
+const MAX_SHARE_FILE_SIZE = 8 * 1024 * 1024; // 8MB
+
 async function createShareExportBlob() {
-  const baseCanvas = document.createElement("canvas");
-  const baseContext = baseCanvas.getContext("2d");
+  const canvas = document.querySelector("canvas");
 
-  baseCanvas.width = canvas.width;
-  baseCanvas.height = canvas.height;
-  baseContext.fillStyle = "#ffffff";
-  baseContext.fillRect(0, 0, baseCanvas.width, baseCanvas.height);
-  baseContext.drawImage(canvas, 0, 0);
+  if (!canvas) {
+    throw new Error("Canvas not found");
+  }
 
-  const maxEdge = IS_MOBILE_DEVICE ? MOBILE_SHARE_MAX_EDGE : DESKTOP_SHARE_MAX_EDGE;
-  const longestSide = Math.max(baseCanvas.width, baseCanvas.height);
-  const initialScale = longestSide > maxEdge ? maxEdge / longestSide : 1;
-  let workingWidth = Math.max(1, Math.round(baseCanvas.width * initialScale));
-  let workingHeight = Math.max(1, Math.round(baseCanvas.height * initialScale));
-  let quality = IS_MOBILE_DEVICE ? 0.86 : 0.9;
+  let quality = 0.9;
+  let scale = 1.0;
 
-  for (let attempt = 1; attempt <= 6; attempt += 1) {
-    const workCanvas = document.createElement("canvas");
-    const workContext = workCanvas.getContext("2d");
+  while (quality >= 0.45) {
+    const blob = await exportCanvasToJpegBlob(canvas, quality, scale);
 
-    workCanvas.width = workingWidth;
-    workCanvas.height = workingHeight;
-    workContext.fillStyle = "#ffffff";
-    workContext.fillRect(0, 0, workingWidth, workingHeight);
-    workContext.drawImage(baseCanvas, 0, 0, workingWidth, workingHeight);
-
-    const blob = await canvasToBlob(workCanvas, "image/jpeg", quality);
     appendDebugLog(
-      `STEP 2.${attempt}: share export attempt ${attempt} => ${workingWidth}x${workingHeight}, q=${quality.toFixed(
-        2
-      )}, size=${formatFileSize(blob.size)}`
+      `Compress test: quality=${quality.toFixed(2)}, scale=${scale.toFixed(2)}, size=${formatFileSize(blob.size)}`
     );
 
-    if (blob.size <= MAX_SHARE_EXPORT_BYTES || attempt === 6) {
+    if (blob.size <= MAX_SHARE_FILE_SIZE) {
       return blob;
     }
 
-    quality = Math.max(0.6, quality - 0.08);
-    workingWidth = Math.max(960, Math.round(workingWidth * 0.88));
-    workingHeight = Math.max(540, Math.round(workingHeight * 0.88));
+    quality -= 0.1;
   }
 
-  throw new Error("Unable to prepare share image");
+  // ถ้าลด quality แล้วยังเกิน 8MB ให้ลดขนาดภาพลง
+  quality = 0.75;
+
+  while (scale >= 0.4) {
+    scale -= 0.1;
+
+    const blob = await exportCanvasToJpegBlob(canvas, quality, scale);
+
+    appendDebugLog(
+      `Resize test: quality=${quality.toFixed(2)}, scale=${scale.toFixed(2)}, size=${formatFileSize(blob.size)}`
+    );
+
+    if (blob.size <= MAX_SHARE_FILE_SIZE) {
+      return blob;
+    }
+  }
+
+  throw new Error("File size exceeds 8MB after compression");
+}
+
+function exportCanvasToJpegBlob(sourceCanvas, quality = 0.85, scale = 1.0) {
+  return new Promise((resolve, reject) => {
+    const targetCanvas = document.createElement("canvas");
+
+    targetCanvas.width = Math.floor(sourceCanvas.width * scale);
+    targetCanvas.height = Math.floor(sourceCanvas.height * scale);
+
+    const ctx = targetCanvas.getContext("2d");
+
+    if (!ctx) {
+      reject(new Error("Cannot create canvas context"));
+      return;
+    }
+
+    ctx.drawImage(
+      sourceCanvas,
+      0,
+      0,
+      targetCanvas.width,
+      targetCanvas.height
+    );
+
+    targetCanvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error("Cannot export canvas blob"));
+          return;
+        }
+
+        resolve(blob);
+      },
+      "image/jpeg",
+      quality
+    );
+  });
 }
 
 async function removeWithPythonApi(file) {
@@ -1718,6 +1755,7 @@ async function saveOrShareCanvasImage() {
   const fileName = getOutputFileName();
   const isLineBrowser = /Line\//i.test(navigator.userAgent);
   const shouldPreferShare = isLineBrowser || IS_MOBILE_DEVICE;
+  const MAX_SHARE_FILE_SIZE = 8 * 1024 * 1024; // 8MB
 
   try {
     resetDebugLog(`STEP 1: click share button (LINE=${isLineBrowser}, mobile=${IS_MOBILE_DEVICE})`);
