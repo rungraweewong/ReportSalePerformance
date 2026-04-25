@@ -137,6 +137,10 @@ h2 {
   color: var(--muted);
 }
 
+#statusText {
+  white-space: pre-line;
+}
+
 .upload-dropzone {
   position: relative;
   display: grid;

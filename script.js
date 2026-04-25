@@ -88,6 +88,7 @@ const state = {
     offsetX: 0,
     offsetY: 0,
   },
+  debugLogs: [],
 };
 
 function createDefaultTextItem() {
@@ -130,6 +131,42 @@ function formatFileSize(bytes) {
 
 function updateStatus(message) {
   statusText.textContent = message;
+}
+
+function appendDebugLog(message) {
+  const timestamp = new Date().toLocaleTimeString("th-TH", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  state.debugLogs.push(`[${timestamp}] ${message}`);
+  state.debugLogs = state.debugLogs.slice(-8);
+  statusText.textContent = state.debugLogs.join("\n");
+}
+
+function resetDebugLog(message) {
+  state.debugLogs = [];
+  appendDebugLog(message);
+}
+
+function formatErrorMessage(error) {
+  if (!error) {
+    return "Unknown error";
+  }
+
+  if (typeof error === "string") {
+    return error;
+  }
+
+  if (error instanceof Error) {
+    return `${error.name}: ${error.message}`;
+  }
+
+  try {
+    return JSON.stringify(error);
+  } catch (jsonError) {
+    return String(error);
+  }
 }
 
 function updateBackgroundTitle(fileName) {
@@ -1483,14 +1520,18 @@ function triggerBlobDownload(blob, fileName) {
 }
 
 async function exportCanvasForSharing(blob, fileName) {
+  appendDebugLog(`STEP 3: exportCanvasForSharing start (${fileName}, ${formatFileSize(blob.size)})`);
   const formData = new FormData();
   formData.append("file", new File([blob], fileName, { type: "image/png" }));
 
-  console.info("Calling export-report API", getApiUrl("/export-report"));
-  const response = await fetch(getApiUrl("/export-report"), {
+  const exportUrl = getApiUrl("/export-report");
+  appendDebugLog(`STEP 4: calling API ${exportUrl}`);
+  console.info("Calling export-report API", exportUrl);
+  const response = await fetch(exportUrl, {
     method: "POST",
     body: formData,
   });
+  appendDebugLog(`STEP 5: API response status ${response.status}`);
 
   if (!response.ok) {
     let detail = "";
@@ -1502,10 +1543,12 @@ async function exportCanvasForSharing(blob, fileName) {
       detail = "";
     }
 
+    appendDebugLog(`STEP 6: API failed detail = ${detail || "none"}`);
     throw new Error(detail || `Export failed (${response.status})`);
   }
 
   const payload = await response.json();
+  appendDebugLog(`STEP 6: API success payload url = ${payload?.url || "missing"}`);
 
   if (!payload?.url) {
     throw new Error("Export API did not return image URL");
@@ -1519,14 +1562,17 @@ async function exportCanvasForSharing(blob, fileName) {
 
 async function shareExportedUrlIfAvailable(exportedImage, fileName) {
   if (!navigator.share) {
+    appendDebugLog("STEP 7: navigator.share not available");
     return false;
   }
 
+  appendDebugLog(`STEP 7: opening share sheet with ${exportedImage.absoluteUrl}`);
   await navigator.share({
     title: "Sale Report",
     text: `ภาพรายงานยอดขาย: ${fileName}`,
     url: exportedImage.absoluteUrl,
   });
+  appendDebugLog("STEP 8: share sheet completed");
   return true;
 }
 
@@ -1553,6 +1599,7 @@ function copyText(text) {
 }
 
 function showDownloadPreview(imageUrl, fileName) {
+  appendDebugLog(`STEP 9: show fallback popup (${imageUrl})`);
   const previousOverlay = document.querySelector(".download-preview-overlay");
 
   if (previousOverlay) {
@@ -1623,11 +1670,12 @@ async function saveOrShareCanvasImage() {
   const shouldPreferShare = isLineBrowser || IS_MOBILE_DEVICE;
 
   try {
+    resetDebugLog(`STEP 1: click share button (LINE=${isLineBrowser}, mobile=${IS_MOBILE_DEVICE})`);
     drawCanvas({ hideSelection: true });
+    appendDebugLog("STEP 2: drawing canvas for export");
     const blob = await canvasToBlob(canvas, "image/png");
+    appendDebugLog(`STEP 2: canvas blob created (${formatFileSize(blob.size)})`);
     drawCanvas();
-
-    updateStatus("กำลังสร้างลิงก์รูปจาก backend สำหรับแชร์...");
     const exportedImage = await exportCanvasForSharing(blob, fileName);
 
     if (shouldPreferShare) {
@@ -1638,6 +1686,7 @@ async function saveOrShareCanvasImage() {
         }
       } catch (shareError) {
         console.warn("Share URL failed, falling back to preview", shareError);
+        appendDebugLog(`STEP 8: share failed = ${formatErrorMessage(shareError)}`);
 
         if (isLineBrowser) {
           showDownloadPreview(exportedImage.absoluteUrl, fileName);
@@ -1653,12 +1702,13 @@ async function saveOrShareCanvasImage() {
       return;
     }
 
+    appendDebugLog(`STEP 9: opening exported URL ${exportedImage.absoluteUrl}`);
     window.open(exportedImage.absoluteUrl, "_blank", "noopener,noreferrer");
     updateStatus("สร้างลิงก์รูปแล้ว เปิดรูปในแท็บใหม่ให้เรียบร้อย");
   } catch (error) {
     drawCanvas();
     console.error("Download failed", error);
-    updateStatus("แชร์/บันทึกรูปไม่สำเร็จ กรุณาลองอีกครั้ง");
+    updateStatus(`แชร์/บันทึกรูปไม่สำเร็จ\nERROR: ${formatErrorMessage(error)}`);
   }
 }
 
