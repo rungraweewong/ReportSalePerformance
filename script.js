@@ -58,6 +58,9 @@ const MOBILE_REMBG_MAX_EDGE = 960;
 const DESKTOP_REMBG_MAX_EDGE = 2200;
 const MOBILE_PROCESSING_QUALITY = 0.82;
 const DESKTOP_PROCESSING_QUALITY = 0.92;
+const MAX_SHARE_EXPORT_BYTES = 7.5 * 1024 * 1024;
+const MOBILE_SHARE_MAX_EDGE = 1600;
+const DESKTOP_SHARE_MAX_EDGE = 2200;
 const PYTHON_API_BASE_URL = (
   window.APP_CONFIG?.PYTHON_API_BASE_URL ||
   window.APP_CONFIG?.PYTHON_API_URL?.replace(/\/remove-background\/?$/, "") ||
@@ -429,6 +432,52 @@ async function createProcessingFile(file, image) {
     type: blob.type || exportType,
     lastModified: file.lastModified || Date.now(),
   });
+}
+
+async function createShareExportBlob() {
+  const baseCanvas = document.createElement("canvas");
+  const baseContext = baseCanvas.getContext("2d");
+
+  baseCanvas.width = canvas.width;
+  baseCanvas.height = canvas.height;
+  baseContext.fillStyle = "#ffffff";
+  baseContext.fillRect(0, 0, baseCanvas.width, baseCanvas.height);
+  baseContext.drawImage(canvas, 0, 0);
+
+  const maxEdge = IS_MOBILE_DEVICE ? MOBILE_SHARE_MAX_EDGE : DESKTOP_SHARE_MAX_EDGE;
+  const longestSide = Math.max(baseCanvas.width, baseCanvas.height);
+  const initialScale = longestSide > maxEdge ? maxEdge / longestSide : 1;
+  let workingWidth = Math.max(1, Math.round(baseCanvas.width * initialScale));
+  let workingHeight = Math.max(1, Math.round(baseCanvas.height * initialScale));
+  let quality = IS_MOBILE_DEVICE ? 0.86 : 0.9;
+
+  for (let attempt = 1; attempt <= 6; attempt += 1) {
+    const workCanvas = document.createElement("canvas");
+    const workContext = workCanvas.getContext("2d");
+
+    workCanvas.width = workingWidth;
+    workCanvas.height = workingHeight;
+    workContext.fillStyle = "#ffffff";
+    workContext.fillRect(0, 0, workingWidth, workingHeight);
+    workContext.drawImage(baseCanvas, 0, 0, workingWidth, workingHeight);
+
+    const blob = await canvasToBlob(workCanvas, "image/jpeg", quality);
+    appendDebugLog(
+      `STEP 2.${attempt}: share export attempt ${attempt} => ${workingWidth}x${workingHeight}, q=${quality.toFixed(
+        2
+      )}, size=${formatFileSize(blob.size)}`
+    );
+
+    if (blob.size <= MAX_SHARE_EXPORT_BYTES || attempt === 6) {
+      return blob;
+    }
+
+    quality = Math.max(0.6, quality - 0.08);
+    workingWidth = Math.max(960, Math.round(workingWidth * 0.88));
+    workingHeight = Math.max(540, Math.round(workingHeight * 0.88));
+  }
+
+  throw new Error("Unable to prepare share image");
 }
 
 async function removeWithPythonApi(file) {
@@ -1522,7 +1571,8 @@ function triggerBlobDownload(blob, fileName) {
 async function exportCanvasForSharing(blob, fileName) {
   appendDebugLog(`STEP 3: exportCanvasForSharing start (${fileName}, ${formatFileSize(blob.size)})`);
   const formData = new FormData();
-  formData.append("file", new File([blob], fileName, { type: "image/png" }));
+  const uploadFileName = fileName.replace(/\.png$/i, ".jpg");
+  formData.append("file", new File([blob], uploadFileName, { type: blob.type || "image/jpeg" }));
 
   const exportUrl = getApiUrl("/export-report");
   appendDebugLog(`STEP 4: calling API ${exportUrl}`);
@@ -1673,8 +1723,8 @@ async function saveOrShareCanvasImage() {
     resetDebugLog(`STEP 1: click share button (LINE=${isLineBrowser}, mobile=${IS_MOBILE_DEVICE})`);
     drawCanvas({ hideSelection: true });
     appendDebugLog("STEP 2: drawing canvas for export");
-    const blob = await canvasToBlob(canvas, "image/png");
-    appendDebugLog(`STEP 2: canvas blob created (${formatFileSize(blob.size)})`);
+    const blob = await createShareExportBlob();
+    appendDebugLog(`STEP 2: compressed share blob ready (${blob.type || "image/jpeg"}, ${formatFileSize(blob.size)})`);
     drawCanvas();
     const exportedImage = await exportCanvasForSharing(blob, fileName);
 
