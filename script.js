@@ -1630,9 +1630,21 @@ async function saveOrShareCanvasImage() {
     updateStatus("กำลังสร้างลิงก์รูปจาก backend สำหรับแชร์...");
     const exportedImage = await exportCanvasForSharing(blob, fileName);
 
-    if (shouldPreferShare && (await shareExportedUrlIfAvailable(exportedImage, fileName))) {
-      updateStatus("เปิดเมนูแชร์แล้ว คุณสามารถส่งลิงก์รูปต่อได้จากเมนูนี้");
-      return;
+    if (shouldPreferShare) {
+      try {
+        if (await shareExportedUrlIfAvailable(exportedImage, fileName)) {
+          updateStatus("เปิดเมนูแชร์แล้ว คุณสามารถส่งลิงก์รูปต่อได้จากเมนูนี้");
+          return;
+        }
+      } catch (shareError) {
+        console.warn("Share URL failed, falling back to preview", shareError);
+
+        if (isLineBrowser) {
+          showDownloadPreview(exportedImage.absoluteUrl, fileName);
+          updateStatus("LINE browser แชร์ตรงไม่สำเร็จ แต่เราเปิดลิงก์รูปให้แล้ว กดเปิดรูปหรือคัดลอกลิงก์ไปแชร์ต่อได้เลย");
+          return;
+        }
+      }
     }
 
     if (isLineBrowser) {
