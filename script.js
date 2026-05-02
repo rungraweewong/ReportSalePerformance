@@ -73,6 +73,8 @@ const IS_MOBILE_DEVICE =
   /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(
     navigator.userAgent
   ) || window.matchMedia("(max-width: 920px)").matches;
+const IS_ANDROID = /Android/i.test(navigator.userAgent);
+const IS_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 const state = {
   background: null,
@@ -1644,6 +1646,10 @@ async function exportCanvasForSharing(blob, fileName) {
   return {
     ...payload,
     absoluteUrl: new URL(payload.url, `${PYTHON_API_BASE_URL}/`).toString(),
+    absoluteDownloadUrl: new URL(
+      payload.downloadUrl || `${payload.url}?download=1`,
+      `${PYTHON_API_BASE_URL}/`
+    ).toString(),
   };
 }
 
@@ -1685,13 +1691,51 @@ function copyText(text) {
   return Promise.resolve();
 }
 
-function showDownloadPreview(imageUrl, fileName) {
-  appendDebugLog(`STEP 9: show fallback popup (${imageUrl})`);
+function buildChromeIntentUrl(url) {
+  const parsedUrl = new URL(url);
+  const scheme = parsedUrl.protocol.replace(":", "");
+  const path = `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`;
+  return `intent://${parsedUrl.host}${path}#Intent;scheme=${scheme};package=com.android.chrome;end`;
+}
+
+function openChromeIntent(url) {
+  const chromeIntentUrl = buildChromeIntentUrl(url);
+  appendDebugLog(`STEP 10: open Chrome intent ${chromeIntentUrl}`);
+  window.location.href = chromeIntentUrl;
+}
+
+function showDownloadPreview(exportedImage, fileName) {
+  appendDebugLog(`STEP 9: show fallback popup (${exportedImage.absoluteUrl})`);
   const previousOverlay = document.querySelector(".download-preview-overlay");
 
   if (previousOverlay) {
     previousOverlay.remove();
   }
+
+  const actionHeading = IS_ANDROID
+    ? "เปิดต่อใน Chrome และบันทึกรูป"
+    : "คัดลอก URL ไปเปิดใน Safari";
+  const actionHelp = IS_ANDROID
+    ? "Android: ปุ่มด้านล่างจะพยายามเปิด Chrome โดยตรง และปุ่ม Save จะเปิดลิงก์ดาวน์โหลดเพื่อให้ Chrome เซฟรูปลงเครื่อง"
+    : "iPhone/iPad: LINE browser ไม่อนุญาตให้บันทึกรูปลง Gallery ตรง ๆ ให้คัดลอก URL แล้วนำไปเปิดใน Safari เพื่อบันทึกรูปแทน";
+  const actionButtons = IS_ANDROID
+    ? `
+      <div class="download-preview-actions">
+        <a class="brand-button download-preview-link" href="${buildChromeIntentUrl(
+          exportedImage.absoluteUrl
+        )}">เปิดใน Chrome</a>
+        <a class="ghost-button download-preview-link" href="${buildChromeIntentUrl(
+          exportedImage.absoluteDownloadUrl
+        )}">Save ลง Gallery</a>
+        <button class="ghost-button" type="button" data-copy-link>คัดลอกลิงก์</button>
+      </div>
+    `
+    : `
+      <div class="download-preview-actions">
+        <button class="brand-button" type="button" data-copy-link>คัดลอก URL รูป</button>
+        <button class="ghost-button" type="button" data-copy-download-link>คัดลอก URL สำหรับ Save</button>
+      </div>
+    `;
 
   const overlay = document.createElement("div");
   overlay.className = "download-preview-overlay";
@@ -1700,29 +1744,24 @@ function showDownloadPreview(imageUrl, fileName) {
       <div class="download-preview-header">
         <div>
           <p class="eyebrow">Share Preview</p>
-          <h2>แชร์หรือบันทึกรูปจากลิงก์จริง</h2>
+          <h2>${actionHeading}</h2>
         </div>
         <button class="ghost-button" type="button" data-close-preview>ปิด</button>
       </div>
       <p class="download-preview-help">
-        LINE browser บางรุ่นไม่ยอมแชร์ไฟล์จากหน้าเว็บตรง ๆ ตอนนี้เราแปลงเป็นลิงก์รูปจริงให้แล้ว คุณสามารถกดเปิดรูป, คัดลอกลิงก์ หรือแชร์ต่อจากลิงก์นี้ได้เลย
+        ${actionHelp}
       </p>
       <img class="download-preview-image" alt="${fileName}" />
-      <div class="download-preview-actions">
-        <a class="brand-button download-preview-link" target="_blank" rel="noopener noreferrer">เปิดรูป</a>
-        <button class="ghost-button" type="button" data-copy-link>คัดลอกลิงก์</button>
-      </div>
+      ${actionButtons}
     </div>
   `;
 
   const image = overlay.querySelector(".download-preview-image");
-  const link = overlay.querySelector(".download-preview-link");
   const closeButton = overlay.querySelector("[data-close-preview]");
   const copyButton = overlay.querySelector("[data-copy-link]");
+  const copyDownloadButton = overlay.querySelector("[data-copy-download-link]");
 
-  image.src = imageUrl;
-  link.href = imageUrl;
-  link.textContent = "เปิดรูป";
+  image.src = exportedImage.absoluteUrl;
   closeButton.addEventListener("click", () => {
     overlay.remove();
   });
@@ -1735,13 +1774,25 @@ function showDownloadPreview(imageUrl, fileName) {
 
   copyButton.addEventListener("click", async () => {
     try {
-      await copyText(imageUrl);
-      updateStatus("คัดลอกลิงก์รูปแล้ว");
+      await copyText(exportedImage.absoluteUrl);
+      updateStatus(IS_ANDROID ? "คัดลอกลิงก์รูปแล้ว" : "คัดลอก URL รูปแล้ว ให้นำไปเปิดใน Safari");
     } catch (error) {
       console.error("Copy link failed", error);
       updateStatus("คัดลอกลิงก์ไม่สำเร็จ กรุณาเปิดรูปแล้วคัดลอกลิงก์เอง");
     }
   });
+
+  if (copyDownloadButton) {
+    copyDownloadButton.addEventListener("click", async () => {
+      try {
+        await copyText(exportedImage.absoluteDownloadUrl);
+        updateStatus("คัดลอก URL สำหรับดาวน์โหลดแล้ว ให้นำไปเปิดใน Safari");
+      } catch (error) {
+        console.error("Copy download link failed", error);
+        updateStatus("คัดลอก URL สำหรับดาวน์โหลดไม่สำเร็จ");
+      }
+    });
+  }
 
   document.body.append(overlay);
 }
@@ -1767,6 +1818,16 @@ async function saveOrShareCanvasImage() {
     const exportedImage = await exportCanvasForSharing(blob, fileName);
 
     if (shouldPreferShare) {
+      if (isLineBrowser) {
+        showDownloadPreview(exportedImage, fileName);
+        updateStatus(
+          IS_ANDROID
+            ? "Android: ใช้ปุ่มเปิดใน Chrome หรือ Save ลง Gallery ได้เลย"
+            : "iOS: คัดลอก URL แล้วนำไปเปิดใน Safari เพื่อบันทึกรูป"
+        );
+        return;
+      }
+
       try {
         if (await shareExportedUrlIfAvailable(exportedImage, fileName)) {
           updateStatus("เปิดเมนูแชร์แล้ว คุณสามารถส่งลิงก์รูปต่อได้จากเมนูนี้");
@@ -1775,18 +1836,15 @@ async function saveOrShareCanvasImage() {
       } catch (shareError) {
         console.warn("Share URL failed, falling back to preview", shareError);
         appendDebugLog(`STEP 8: share failed = ${formatErrorMessage(shareError)}`);
-
-        if (isLineBrowser) {
-          showDownloadPreview(exportedImage.absoluteUrl, fileName);
-          updateStatus("LINE browser แชร์ตรงไม่สำเร็จ แต่เราเปิดลิงก์รูปให้แล้ว กดเปิดรูปหรือคัดลอกลิงก์ไปแชร์ต่อได้เลย");
-          return;
-        }
+        showDownloadPreview(exportedImage, fileName);
+        updateStatus("แชร์ตรงไม่สำเร็จ แต่เราเตรียมลิงก์ให้แล้ว");
+        return;
       }
     }
 
     if (isLineBrowser) {
-      showDownloadPreview(exportedImage.absoluteUrl, fileName);
-      updateStatus("สร้างลิงก์รูปแล้ว เปิดรูปหรือคัดลอกลิงก์ไปแชร์ต่อได้เลย");
+      showDownloadPreview(exportedImage, fileName);
+      updateStatus("สร้างลิงก์รูปแล้ว");
       return;
     }
 

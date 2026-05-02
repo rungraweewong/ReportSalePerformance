@@ -177,17 +177,23 @@ async def export_report(request: Request, file: UploadFile = File(...)) -> JSONR
             "fileName": export_name,
             "url": export_url,
             "relativeUrl": f"/exports/{export_name}",
+            "downloadUrl": f"{export_url}?download=1",
             "size": export_path.stat().st_size,
         }
     )
 
 
 @app.get("/exports/{filename}", name="get_exported_report")
-async def get_exported_report(filename: str) -> FileResponse:
+async def get_exported_report(filename: str, download: int = 0) -> FileResponse:
     safe_name = Path(filename).name
     export_path = EXPORT_ROOT / safe_name
 
     if not export_path.exists():
         raise HTTPException(status_code=404, detail="Export not found")
 
-    return FileResponse(export_path, media_type="image/png", filename=safe_name)
+    headers = None
+
+    if download:
+        headers = {"Content-Disposition": f'attachment; filename="{safe_name}"'}
+
+    return FileResponse(export_path, media_type="image/png", filename=safe_name, headers=headers)
