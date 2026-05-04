@@ -1670,6 +1670,16 @@ function copyText(text) {
   return Promise.resolve();
 }
 
+function triggerUrlDownload(url, fileName) {
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.rel = "noopener";
+  document.body.append(link);
+  link.click();
+  link.remove();
+}
+
 function buildChromeIntentUrl(url) {
   const parsedUrl = new URL(url);
   const scheme = parsedUrl.protocol.replace(":", "");
@@ -1785,8 +1795,6 @@ async function saveOrShareCanvasImage() {
   const fileName = getOutputFileName();
   const isLineBrowser = /Line\//i.test(navigator.userAgent);
   const shouldPreferShare = isLineBrowser || IS_MOBILE_DEVICE;
-  const MAX_SHARE_FILE_SIZE = 8 * 1024 * 1024; // 8MB
-
   try {
     resetDebugLog(`STEP 1: click share button (LINE=${isLineBrowser}, mobile=${IS_MOBILE_DEVICE})`);
     drawCanvas({ hideSelection: true });
@@ -1827,9 +1835,9 @@ async function saveOrShareCanvasImage() {
       return;
     }
 
-    appendDebugLog(`STEP 9: opening exported URL ${exportedImage.absoluteUrl}`);
-    window.open(exportedImage.absoluteUrl, "_blank", "noopener,noreferrer");
-    updateStatus("สร้างลิงก์รูปแล้ว เปิดรูปในแท็บใหม่ให้เรียบร้อย");
+    appendDebugLog(`STEP 9: download from ${exportedImage.absoluteDownloadUrl}`);
+    triggerUrlDownload(exportedImage.absoluteDownloadUrl, fileName);
+    updateStatus(`เริ่มดาวน์โหลดรูป ${fileName} แล้ว`);
   } catch (error) {
     drawCanvas();
     console.error("Download failed", error);
