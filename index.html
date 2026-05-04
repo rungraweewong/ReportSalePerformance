@@ -163,7 +163,6 @@
             <span class="dropzone-icon small">+</span>
             <span class="dropzone-title">อัปโหลดรูปคนขาย</span>
             <span class="dropzone-subtitle">เลือกได้ไม่จำกัด และลากวางลงบน preview ได้ต่อทันที</span>
-            <span class="dropzone-note">ระบบจะใช้ Python API เพื่อดึงเฉพาะตัวคนออกมา</span>
           </label>
 
           <div class="control-group">
@@ -176,15 +175,9 @@
             <input id="imageScale" type="range" min="5" max="120" step="1" value="28" />
           </div>
 
-          <div class="field-grid">
-            <label class="toggle-card">
-              <input id="removeBgEnabled" type="checkbox" checked />
-              <span>เปิดการตัด background</span>
-            </label>
-            <div class="stat-card">
-              <span class="stat-label">สถานะ</span>
-              <strong id="imageStatus">ยังไม่มีรูปคนขาย</strong>
-            </div>
+          <div class="control-group compact-status">
+            <p class="field-label">สถานะรูปคนขาย</p>
+            <p class="seller-status" id="imageStatus">ยังไม่มีรูปคนขาย</p>
           </div>
 
           <div class="button-row">

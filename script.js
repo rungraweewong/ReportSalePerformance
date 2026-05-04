@@ -138,6 +138,10 @@ function updateStatus(message) {
   statusText.textContent = message;
 }
 
+function getRemoveBgEnabledValue() {
+  return removeBgEnabled ? removeBgEnabled.checked : true;
+}
+
 function appendDebugLog(message) {
   const timestamp = new Date().toLocaleTimeString("th-TH", {
     hour: "2-digit",
@@ -753,7 +757,9 @@ function refreshImageSelector() {
     selectedImageItem.disabled = true;
     removeImageButton.disabled = true;
     imageScale.disabled = true;
-    removeBgEnabled.disabled = true;
+    if (removeBgEnabled) {
+      removeBgEnabled.disabled = true;
+    }
     imageStatus.textContent = "ยังไม่มีรูปคนขาย";
     state.selectedImageId = null;
     return;
@@ -762,7 +768,9 @@ function refreshImageSelector() {
   selectedImageItem.disabled = false;
   removeImageButton.disabled = false;
   imageScale.disabled = false;
-  removeBgEnabled.disabled = false;
+  if (removeBgEnabled) {
+    removeBgEnabled.disabled = false;
+  }
 
   state.images.forEach((item, index) => {
     const option = document.createElement("option");
@@ -813,14 +821,18 @@ function fillImageEditor() {
 
   if (!selectedImage) {
     imageScale.value = 28;
-    removeBgEnabled.checked = true;
+    if (removeBgEnabled) {
+      removeBgEnabled.checked = true;
+    }
     imageStatus.textContent = "ยังไม่มีรูปคนขาย";
     return;
   }
 
   const { width } = getReferenceDimensions();
   imageScale.value = Math.round(selectedImage.widthRatio * 100);
-  removeBgEnabled.checked = selectedImage.removeBgEnabled;
+  if (removeBgEnabled) {
+    removeBgEnabled.checked = selectedImage.removeBgEnabled;
+  }
 
   if (selectedImage.isProcessing) {
     imageStatus.textContent = `${selectedImage.name} • กำลังลบพื้นหลัง...`;
@@ -899,7 +911,7 @@ function queueImageReprocessSettings() {
   }
 
   selectedImage.threshold = DEFAULT_BG_THRESHOLD;
-  selectedImage.removeBgEnabled = removeBgEnabled.checked;
+  selectedImage.removeBgEnabled = getRemoveBgEnabledValue();
   fillImageEditor();
   imageStatus.textContent = "อัปเดตการเปิด/ปิดการตัดพื้นหลังแล้ว";
 }
@@ -1580,33 +1592,6 @@ function getOutputFileName() {
   return `${safeName}-report.png`;
 }
 
-function openBlobInNewTab(blob, targetWindow = null) {
-  const objectUrl = URL.createObjectURL(blob);
-
-  if (targetWindow && !targetWindow.closed) {
-    targetWindow.location.href = objectUrl;
-    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
-    return true;
-  }
-
-  const openedWindow = window.open(objectUrl, "_blank", "noopener,noreferrer");
-  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
-  return Boolean(openedWindow);
-}
-
-function triggerBlobDownload(blob, fileName) {
-  const objectUrl = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-
-  link.href = objectUrl;
-  link.download = fileName;
-  link.rel = "noopener";
-  document.body.append(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 2_000);
-}
-
 async function exportCanvasForSharing(blob, fileName) {
   appendDebugLog(`STEP 3: exportCanvasForSharing start (${fileName}, ${formatFileSize(blob.size)})`);
   const formData = new FormData();
@@ -1941,7 +1926,10 @@ selectedImageItem.addEventListener("change", (event) => {
 });
 
 imageScale.addEventListener("input", syncImageEditorToSelectedImage);
-removeBgEnabled.addEventListener("change", queueImageReprocessSettings);
+
+if (removeBgEnabled) {
+  removeBgEnabled.addEventListener("change", queueImageReprocessSettings);
+}
 
 canvas.addEventListener("pointerdown", handleCanvasPointerDown);
 canvas.addEventListener("pointermove", handleCanvasPointerMove);
