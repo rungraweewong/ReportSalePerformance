@@ -143,19 +143,12 @@ function getRemoveBgEnabledValue() {
 }
 
 function appendDebugLog(message) {
-  const timestamp = new Date().toLocaleTimeString("th-TH", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-  state.debugLogs.push(`[${timestamp}] ${message}`);
-  state.debugLogs = state.debugLogs.slice(-8);
-  statusText.textContent = state.debugLogs.join("\n");
+  console.debug(message);
 }
 
 function resetDebugLog(message) {
   state.debugLogs = [];
-  appendDebugLog(message);
+  console.debug(message);
 }
 
 function formatErrorMessage(error) {
@@ -527,7 +520,7 @@ async function removeWithPythonApi(file) {
   const formData = new FormData();
   formData.append("file", file, file.name);
 
-  imageStatus.textContent = `กำลังเรียก Python API: ${PYTHON_API_URL}`;
+  imageStatus.textContent = "กำลังลบพื้นหลัง...";
   console.info("Calling remove-background API", PYTHON_API_URL, {
     fileName: file.name,
     fileSize: file.size,
@@ -840,7 +833,7 @@ function fillImageEditor() {
   }
 
   const modeLabel = {
-    "python-api": "ใช้ Python API แล้ว",
+    "python-api": "พร้อมใช้งาน",
     original: "ใช้รูปต้นฉบับ",
     pending: "รอประมวลผล",
   }[selectedImage.processingMode] || "พร้อมใช้งาน";
@@ -913,13 +906,14 @@ function queueImageReprocessSettings() {
   selectedImage.threshold = DEFAULT_BG_THRESHOLD;
   selectedImage.removeBgEnabled = getRemoveBgEnabledValue();
   fillImageEditor();
-  imageStatus.textContent = "อัปเดตการเปิด/ปิดการตัดพื้นหลังแล้ว";
 }
 
 function setCanvasSize(width, height) {
   canvas.width = width;
   canvas.height = height;
-  canvasInfo.textContent = `Canvas ขนาด ${width} x ${height} px`;
+  if (canvasInfo) {
+    canvasInfo.textContent = `Canvas ขนาด ${width} x ${height} px`;
+  }
 }
 
 function drawSelectionOutline(x, y, width, height) {
@@ -1402,7 +1396,7 @@ function handlePersonFiles(fileList) {
       (async () => {
         try {
           if (IS_MOBILE_DEVICE) {
-            imageStatus.textContent = "Preparing image for mobile...";
+            imageStatus.textContent = "กำลังเตรียมรูป...";
           }
           try {
             layer.processingFile = await createProcessingFile(file, image);
@@ -1411,7 +1405,7 @@ function handlePersonFiles(fileList) {
             layer.processingFile = file;
           }
 
-          imageStatus.textContent = "Removing seller background...";
+          imageStatus.textContent = "กำลังลบพื้นหลัง...";
           await processPersonLayer(layer);
           fillImageEditor();
           drawCanvas();
@@ -1839,7 +1833,7 @@ async function saveOrShareCanvasImage() {
   } catch (error) {
     drawCanvas();
     console.error("Download failed", error);
-    updateStatus(`แชร์/บันทึกรูปไม่สำเร็จ\nERROR: ${formatErrorMessage(error)}`);
+    updateStatus("แชร์/บันทึกรูปไม่สำเร็จ กรุณาลองใหม่");
   }
 }
 
