@@ -1686,14 +1686,7 @@ function triggerUrlDownload(url, fileName) {
   link.remove();
 }
 
-async function downloadExportedImage(url, fileName) {
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error(`download failed: ${response.status}`);
-  }
-
-  const blob = await response.blob();
+function triggerBlobDownload(blob, fileName) {
   const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement("a");
 
@@ -1828,6 +1821,14 @@ async function saveOrShareCanvasImage() {
     const blob = await createShareExportBlob();
     appendDebugLog(`STEP 2: compressed share blob ready (${blob.type || "image/jpeg"}, ${formatFileSize(blob.size)})`);
     drawCanvas();
+
+    if (!shouldPreferShare) {
+      const downloadFileName = fileName.replace(/\.png$/i, ".jpg");
+      triggerBlobDownload(blob, downloadFileName);
+      updateStatus(`ดาวน์โหลดรูป ${downloadFileName} แล้ว`);
+      return;
+    }
+
     const exportedImage = await exportCanvasForSharing(blob, fileName);
 
     if (shouldPreferShare) {
@@ -1862,7 +1863,7 @@ async function saveOrShareCanvasImage() {
     }
 
     appendDebugLog(`STEP 9: download from ${exportedImage.absoluteDownloadUrl}`);
-    await downloadExportedImage(exportedImage.absoluteDownloadUrl, fileName);
+    triggerUrlDownload(exportedImage.absoluteDownloadUrl, fileName);
     updateStatus(`เริ่มดาวน์โหลดรูป ${fileName} แล้ว`);
   } catch (error) {
     drawCanvas();
