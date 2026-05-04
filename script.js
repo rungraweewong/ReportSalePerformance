@@ -75,6 +75,7 @@ const IS_MOBILE_DEVICE =
   ) || window.matchMedia("(max-width: 920px)").matches;
 const IS_ANDROID = /Android/i.test(navigator.userAgent);
 const IS_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+const IS_LINE_BROWSER = /Line\//i.test(navigator.userAgent);
 
 const state = {
   background: null,
@@ -173,6 +174,11 @@ function formatErrorMessage(error) {
 
 function updateBackgroundTitle(fileName) {
   backgroundTitle.textContent = fileName || "ยังไม่มีไฟล์ background";
+}
+
+function updateDownloadButtonLabel() {
+  downloadButton.textContent =
+    IS_MOBILE_DEVICE || IS_LINE_BROWSER ? "แชร์/บันทึกรูป" : "ดาวน์โหลดรูป";
 }
 
 function getApiUrl(path) {
@@ -1680,6 +1686,26 @@ function triggerUrlDownload(url, fileName) {
   link.remove();
 }
 
+async function downloadExportedImage(url, fileName) {
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`download failed: ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = objectUrl;
+  link.download = fileName;
+  link.rel = "noopener";
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 2_000);
+}
+
 function buildChromeIntentUrl(url) {
   const parsedUrl = new URL(url);
   const scheme = parsedUrl.protocol.replace(":", "");
@@ -1793,7 +1819,7 @@ async function saveOrShareCanvasImage() {
   }
 
   const fileName = getOutputFileName();
-  const isLineBrowser = /Line\//i.test(navigator.userAgent);
+  const isLineBrowser = IS_LINE_BROWSER;
   const shouldPreferShare = isLineBrowser || IS_MOBILE_DEVICE;
   try {
     resetDebugLog(`STEP 1: click share button (LINE=${isLineBrowser}, mobile=${IS_MOBILE_DEVICE})`);
@@ -1836,7 +1862,7 @@ async function saveOrShareCanvasImage() {
     }
 
     appendDebugLog(`STEP 9: download from ${exportedImage.absoluteDownloadUrl}`);
-    triggerUrlDownload(exportedImage.absoluteDownloadUrl, fileName);
+    await downloadExportedImage(exportedImage.absoluteDownloadUrl, fileName);
     updateStatus(`เริ่มดาวน์โหลดรูป ${fileName} แล้ว`);
   } catch (error) {
     drawCanvas();
@@ -1949,6 +1975,7 @@ registerDropzone(backgroundDropzone, (files) => {
 registerDropzone(personDropzone, handlePersonFiles);
 
 setCanvasSize(1200, 675);
+updateDownloadButtonLabel();
 refreshTextSelector();
 refreshImageSelector();
 fillTextEditor();
